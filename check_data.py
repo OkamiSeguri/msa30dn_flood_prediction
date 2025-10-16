@@ -1,21 +1,21 @@
 from setup_db import get_connection, close_connection
 
 def check_data():
-    """Kiem tra data trong database"""
+    """Check data in database"""
     try:
         conn = get_connection()
         if not conn:
-            print("Khong the ket noi database")
+            print("Cannot connect to database")
             return
             
         cursor = conn.cursor()
         
-        # Dem so records
+        # Count records
         cursor.execute("SELECT COUNT(*) FROM rainfall_data")
         count = cursor.fetchone()[0]
-        print(f"Tong so records: {count}")
+        print(f"Total records: {count}")
         
-        # Lay 5 records moi nhat
+        # Fetch the 5 most recent records
         cursor.execute("""
         SELECT location_name, latitude, longitude, created_at 
         FROM rainfall_data 
@@ -24,7 +24,7 @@ def check_data():
         """)
         
         records = cursor.fetchall()
-        print("\n5 records moi nhat:")
+        print("\n5 most recent records:")
         for record in records:
             print(f"   - {record[0]}: ({record[1]}, {record[2]}) - {record[3]}")
         
@@ -32,7 +32,7 @@ def check_data():
         close_connection(conn)
         
     except Exception as e:
-        print(f"Loi: {e}")
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
     check_data()

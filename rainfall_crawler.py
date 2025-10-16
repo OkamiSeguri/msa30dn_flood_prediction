@@ -6,12 +6,12 @@ from dotenv import load_dotenv
 from setup_db import get_connection, close_connection
 import time
 
-# Load bien moi truong tu .env
+# Load environment variables from .env
 load_dotenv()
 
 WINDY_API_KEY = os.getenv("WINDY_API_KEY")
 
-# Danh sach cac dia diem o Viet Nam
+# List of locations in Vietnam
 LOCATIONS = [
     {"name": "Hanoi", "lat": 21.0285, "lon": 105.8542},
     {"name": "Ho_Chi_Minh_City", "lat": 10.7769, "lon": 106.7009},
@@ -23,7 +23,7 @@ LOCATIONS = [
 ]
 
 def check_and_cleanup_database():
-    """Kiem tra va don dep database neu can"""
+    """Check and clean up database if needed"""
     try:
         conn = get_connection()
         if not conn:
@@ -31,16 +31,16 @@ def check_and_cleanup_database():
             
         cursor = conn.cursor()
         
-        # Dem so records hien tai
+        # Count current records
         cursor.execute("SELECT COUNT(*) FROM rainfall_data")
         total_count = cursor.fetchone()[0]
         
-        MAX_RECORDS = 2000  # Gioi han toi da
+        MAX_RECORDS = 2000  # Maximum limit
         
         if total_count > MAX_RECORDS:
-            print(f"Database co {total_count} records, bat dau don dep...")
+            print(f"Database has {total_count} records, starting cleanup...")
             
-            # Xoa 500 records cu nhat
+            # Delete 500 oldest records
             records_to_delete = total_count - MAX_RECORDS + 500
             cursor.execute("""
                 DELETE FROM rainfall_data 
@@ -49,18 +49,18 @@ def check_and_cleanup_database():
             """, (records_to_delete,))
             
             conn.commit()
-            print(f"Da xoa {records_to_delete} records cu")
+            print(f"Deleted {records_to_delete} old records")
         
         cursor.close()
         close_connection(conn)
         return True
         
     except Exception as e:
-        print(f"Loi khi don dep database: {e}")
+        print(f"Error cleaning database: {e}")
         return False
 
 def check_duplicate_today(location_name):
-    """Kiem tra da crawl du lieu cho location hom nay chua"""
+    """Check if data has been crawled for this location today"""
     try:
         conn = get_connection()
         if not conn:
@@ -68,7 +68,7 @@ def check_duplicate_today(location_name):
             
         cursor = conn.cursor()
         
-        # Kiem tra co record nao hom nay chua
+        # Check if any record exists today
         cursor.execute("""
             SELECT COUNT(*) FROM rainfall_data 
             WHERE location_name = %s 
@@ -80,14 +80,14 @@ def check_duplicate_today(location_name):
         cursor.close()
         close_connection(conn)
         
-        return count > 0  # True neu da co du lieu hom nay
+        return count > 0  # True if data exists today
         
     except Exception as e:
-        print(f"Loi khi kiem tra duplicate: {e}")
+        print(f"Error checking duplicate: {e}")
         return False
 
 def fetch_windy_data(lat, lon):
-    """Goi Windy API de lay du lieu thoi tiet"""
+    """Call Windy API to fetch weather data"""
     if not WINDY_API_KEY:
         print("Error: WINDY_API_KEY not found in environment variables")
         return None
@@ -118,14 +118,14 @@ def fetch_windy_data(lat, lon):
         return None
 
 def process_windy_response(data):
-    """Xu ly du lieu tra ve tu Windy API"""
+    """Process data returned from Windy API"""
     try:
         weather_info = {
             'timestamp': datetime.now().isoformat(),
             'source': 'windy_api'
         }
         
-        # Xu ly cac truong du lieu
+        # Process data fields
         if 'temp-surface' in data and len(data['temp-surface']) > 0:
             weather_info['temperature'] = data['temp-surface'][0]
         elif 'temp' in data and len(data['temp']) > 0:
@@ -177,11 +177,11 @@ def process_windy_response(data):
         return None
 
 def save_to_database(location_name, lat, lon, precipitation_data):
-    """Luu du lieu vao database"""
+    """Save data to database"""
     try:
         conn = get_connection()
         if not conn:
-            print("Khong the ket noi database")
+            print("Cannot connect to database")
             return False
             
         cursor = conn.cursor()
@@ -196,44 +196,44 @@ def save_to_database(location_name, lat, lon, precipitation_data):
         cursor.execute(query, (location_name, lat, lon, precipitation_json))
         conn.commit()
         
-        print(f"Da luu data cho {location_name}")
+        print(f"Data saved for {location_name}")
         
         cursor.close()
         close_connection(conn)
         return True
         
     except Exception as e:
-        print(f"Loi khi luu vao database: {e}")
+        print(f"Error saving to database: {e}")
         return False
 
 def main():
-    print("Bat dau crawl du lieu tu Windy API...")
+    print("Starting to crawl data from Windy API...")
     
-    # Buoc 1: Kiem tra va don dep database
-    print("Kiem tra database...")
+    # Step 1: Check and clean up database
+    print("Checking database...")
     check_and_cleanup_database()
     
-    # Buoc 2: Test ket noi database
+    # Step 2: Test database connection
     conn = get_connection()
     if not conn:
-        print("Khong the ket noi database. Vui long chay setup_db.py truoc")
+        print("Cannot connect to database. Please run setup_db.py first")
         return
     else:
-        print("Ket noi database thanh cong")
+        print("Database connection successful")
         close_connection(conn)
     
-    # Buoc 3: Kiem tra API key
+    # Step 3: Check API key
     if not WINDY_API_KEY:
-        print("Loi: Khong tim thay WINDY_API_KEY trong file .env")
+        print("Error: WINDY_API_KEY not found in .env file")
         return
     
-    # Buoc 4: Crawl du lieu
+    # Step 4: Crawl data
     for location in LOCATIONS:
-        print(f"\nDang crawl data cho {location['name']}...")
+        print(f"\nCrawling data for {location['name']}...")
         
-        # Kiem tra da crawl hom nay chua
+        # Check if data has been crawled today
         if check_duplicate_today(location['name']):
-            print(f"Da co du lieu cho {location['name']} hom nay, bo qua...")
+            print(f"Data already exists for {location['name']} today, skipping...")
             continue
         
         weather_data = fetch_windy_data(location['lat'], location['lon'])
@@ -246,13 +246,13 @@ def main():
             )
             
             if not saved:
-                print(f"Khong the luu data cho {location['name']}")
+                print(f"Cannot save data for {location['name']}")
         else:
-            print(f"Khong nhan duoc data tu Windy API cho {location['name']}")
+            print(f"No data received from Windy API for {location['name']}")
         
-        time.sleep(2)  # Tranh spam API
+        time.sleep(2)  # Avoid spamming API
     
-    print("\nHoan thanh crawl data!")
+    print("\nData crawling completed!")
 
 if __name__ == "__main__":
     main()

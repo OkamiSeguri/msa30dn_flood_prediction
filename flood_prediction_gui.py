@@ -12,7 +12,7 @@ import sys
 import os
 import json
 
-# Import các module của dự án
+# Import project modules
 try:
     from setup_db import get_connection, close_connection
     from predictor import (load_combined_data, load_data_from_db, train_model, 
@@ -24,31 +24,31 @@ except ImportError as e:
 class FloodPredictionGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Hệ Thống Dự Báo Lũ Lụt")
+        self.root.title("Flood Prediction System")
         self.root.geometry("1400x900")
         self.root.configure(bg='#f0f0f0')
         
-        # Biến lưu trữ
+        # Storage variables
         self.model = None
         self.features = None
         self.is_advanced = False
         self.current_data = None
         
-        # Tạo giao diện
+        # Create interface
         self.setup_styles()
         self.create_menu()
         self.create_main_interface()
         self.create_status_bar()
         
-        # Kiểm tra kết nối database ban đầu
+        # Initial database connection check
         self.check_database_connection()
 
     def setup_styles(self):
-        """Thiết lập styles cho giao diện"""
+        """Set up styles for the interface"""
         style = ttk.Style()
         style.theme_use('clam')
         
-        # Màu sắc chủ đạo
+        # Main colors
         style.configure('Title.TLabel', font=('Arial', 16, 'bold'), foreground='#2c3e50')
         style.configure('Header.TLabel', font=('Arial', 12, 'bold'), foreground='#34495e')
         style.configure('Success.TLabel', foreground='#27ae60', font=('Arial', 10, 'bold'))
@@ -57,79 +57,79 @@ class FloodPredictionGUI:
         style.configure('Accent.TButton', foreground='white', font=('Arial', 10, 'bold'))
 
     def create_menu(self):
-        """Tạo menu bar"""
+        """Create menu bar"""
         menubar = tk.Menu(self.root)
         self.root.config(menu=menubar)
         
         # File menu
         file_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Thiết lập Database", command=self.setup_database)
-        file_menu.add_command(label="Xuất báo cáo", command=self.export_report)
+        file_menu.add_command(label="Setup Database", command=self.setup_database)
+        file_menu.add_command(label="Export Report", command=self.export_report)
         file_menu.add_separator()
-        file_menu.add_command(label="Thoát", command=self.root.quit)
+        file_menu.add_command(label="Exit", command=self.root.quit)
         
         # Data menu
         data_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Dữ liệu", menu=data_menu)
-        data_menu.add_command(label="Crawl dữ liệu thời tiết", command=self.crawl_weather_data)
-        data_menu.add_command(label="Crawl dữ liệu mực nước", command=self.crawl_river_data)
-        data_menu.add_command(label="Quản lý Database", command=self.manage_database)
+        menubar.add_cascade(label="Data", menu=data_menu)
+        data_menu.add_command(label="Crawl Weather Data", command=self.crawl_weather_data)
+        data_menu.add_command(label="Crawl River Data", command=self.crawl_river_data)
+        data_menu.add_command(label="Manage Database", command=self.manage_database)
         
         # Model menu
         model_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Mô hình", menu=model_menu)
-        model_menu.add_command(label="Huấn luyện mô hình", command=self.train_prediction_model)
-        model_menu.add_command(label="Đánh giá mô hình", command=self.evaluate_model)
+        menubar.add_cascade(label="Model", menu=model_menu)
+        model_menu.add_command(label="Train Model", command=self.train_prediction_model)
+        model_menu.add_command(label="Evaluate Model", command=self.evaluate_model)
         
         # Help menu
         help_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Trợ giúp", menu=help_menu)
-        help_menu.add_command(label="Hướng dẫn sử dụng", command=self.show_help)
-        help_menu.add_command(label="Về phần mềm", command=self.show_about)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="User Guide", command=self.show_help)
+        help_menu.add_command(label="About Software", command=self.show_about)
 
     def create_main_interface(self):
-        """Tạo giao diện chính"""
-        # Tạo notebook để chia tabs
+        """Create main interface"""
+        # Create notebook for tabs
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Tab 1: Dashboard
         self.create_dashboard_tab()
         
-        # Tab 2: Dự báo
+        # Tab 2: Prediction
         self.create_prediction_tab()
         
-        # Tab 3: Dữ liệu
+        # Tab 3: Data
         self.create_data_tab()
         
-        # Tab 4: Báo cáo
+        # Tab 4: Reports
         self.create_reports_tab()
         
-        # Tab 5: Cài đặt
+        # Tab 5: Settings
         self.create_settings_tab()
 
     def create_dashboard_tab(self):
-        """Tab Dashboard - Tổng quan hệ thống"""
+        """Dashboard Tab - System Overview"""
         dashboard_frame = ttk.Frame(self.notebook)
         self.notebook.add(dashboard_frame, text="Dashboard")
         
-        # Frame trái - Thông tin hệ thống
-        left_frame = ttk.LabelFrame(dashboard_frame, text="Tình trạng hệ thống", padding=10)
+        # Left frame - System information
+        left_frame = ttk.LabelFrame(dashboard_frame, text="System Status", padding=10)
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Database status
-        ttk.Label(left_frame, text="Trạng thái Database:", style='Header.TLabel').pack(anchor='w')
-        self.db_status_label = ttk.Label(left_frame, text="Đang kiểm tra...", style='Warning.TLabel')
+        ttk.Label(left_frame, text="Database Status:", style='Header.TLabel').pack(anchor='w')
+        self.db_status_label = ttk.Label(left_frame, text="Checking...", style='Warning.TLabel')
         self.db_status_label.pack(anchor='w', pady=(0,10))
         
         # Model status
-        ttk.Label(left_frame, text="Trạng thái Mô hình:", style='Header.TLabel').pack(anchor='w')
-        self.model_status_label = ttk.Label(left_frame, text="Chưa huấn luyện", style='Error.TLabel')
+        ttk.Label(left_frame, text="Model Status:", style='Header.TLabel').pack(anchor='w')
+        self.model_status_label = ttk.Label(left_frame, text="Not Trained", style='Error.TLabel')
         self.model_status_label.pack(anchor='w', pady=(0,10))
         
         # Data summary
-        ttk.Label(left_frame, text="Thống kê dữ liệu:", style='Header.TLabel').pack(anchor='w')
+        ttk.Label(left_frame, text="Data Statistics:", style='Header.TLabel').pack(anchor='w')
         self.data_summary_text = tk.Text(left_frame, height=8, wrap=tk.WORD)
         self.data_summary_text.pack(fill=tk.BOTH, expand=True, pady=(5,10))
         
@@ -137,30 +137,30 @@ class FloodPredictionGUI:
         button_frame = ttk.Frame(left_frame)
         button_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Button(button_frame, text="Làm mới", command=self.refresh_dashboard).pack(side=tk.LEFT, padx=(0,5))
-        ttk.Button(button_frame, text="Chạy tự động", command=self.run_auto_system).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Refresh", command=self.refresh_dashboard).pack(side=tk.LEFT, padx=(0,5))
+        ttk.Button(button_frame, text="Run Auto", command=self.run_auto_system).pack(side=tk.LEFT, padx=5)
         
-        # Frame phải - Biểu đồ
-        right_frame = ttk.LabelFrame(dashboard_frame, text="Biểu đồ tổng quan", padding=10)
+        # Right frame - Charts
+        right_frame = ttk.LabelFrame(dashboard_frame, text="Overview Charts", padding=10)
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Matplotlib figure
         self.dashboard_fig, self.dashboard_axes = plt.subplots(2, 2, figsize=(8, 6))
-        self.dashboard_fig.suptitle("Thống kê dữ liệu hệ thống")
+        self.dashboard_fig.suptitle("System Data Statistics")
         
         self.dashboard_canvas = FigureCanvasTkAgg(self.dashboard_fig, right_frame)
         self.dashboard_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def create_prediction_tab(self):
-        """Tab Dự báo - Thực hiện dự báo lũ lụt"""
+        """Prediction Tab - Perform flood prediction"""
         prediction_frame = ttk.Frame(self.notebook)
-        self.notebook.add(prediction_frame, text="Dự báo")
+        self.notebook.add(prediction_frame, text="Prediction")
         
-        # Frame trên - Input parameters
-        input_frame = ttk.LabelFrame(prediction_frame, text="Nhập dữ liệu dự báo", padding=10)
+        # Top frame - Input parameters
+        input_frame = ttk.LabelFrame(prediction_frame, text="Enter Prediction Data", padding=10)
         input_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        # Tạo 2 cột cho input
+        # Create 2 columns for input
         left_input = ttk.Frame(input_frame)
         left_input.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
         
@@ -168,10 +168,10 @@ class FloodPredictionGUI:
         right_input.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10)
         
         # Left column - Weather data
-        ttk.Label(left_input, text="Dữ liệu thời tiết:", style='Header.TLabel').pack(anchor='w')
+        ttk.Label(left_input, text="Weather Data:", style='Header.TLabel').pack(anchor='w')
         
         # Temperature
-        ttk.Label(left_input, text="Nhiệt độ (°C):").pack(anchor='w', pady=(10,0))
+        ttk.Label(left_input, text="Temperature (°C):").pack(anchor='w', pady=(10,0))
         self.temp_var = tk.DoubleVar(value=26.0)
         temp_frame = ttk.Frame(left_input)
         temp_frame.pack(fill=tk.X, pady=2)
@@ -183,7 +183,7 @@ class FloodPredictionGUI:
         temp_scale.config(command=lambda v: self.temp_value_label.config(text=f"{float(v):.1f}°C"))
         
         # Humidity
-        ttk.Label(left_input, text="Độ ẩm (%):").pack(anchor='w', pady=(10,0))
+        ttk.Label(left_input, text="Humidity (%):").pack(anchor='w', pady=(10,0))
         self.humidity_var = tk.DoubleVar(value=70.0)
         humidity_frame = ttk.Frame(left_input)
         humidity_frame.pack(fill=tk.X, pady=2)
@@ -195,7 +195,7 @@ class FloodPredictionGUI:
         humidity_scale.config(command=lambda v: self.humidity_value_label.config(text=f"{int(float(v))}%"))
         
         # Pressure
-        ttk.Label(left_input, text="Áp suất (hPa):").pack(anchor='w', pady=(10,0))
+        ttk.Label(left_input, text="Pressure (hPa):").pack(anchor='w', pady=(10,0))
         self.pressure_var = tk.DoubleVar(value=1013.0)
         pressure_frame = ttk.Frame(left_input)
         pressure_frame.pack(fill=tk.X, pady=2)
@@ -207,7 +207,7 @@ class FloodPredictionGUI:
         pressure_scale.config(command=lambda v: self.pressure_value_label.config(text=f"{int(float(v))}hPa"))
         
         # Rainfall
-        ttk.Label(left_input, text="Lượng mưa 1h (mm):").pack(anchor='w', pady=(10,0))
+        ttk.Label(left_input, text="Rainfall 1h (mm):").pack(anchor='w', pady=(10,0))
         self.rainfall_1h_var = tk.DoubleVar(value=0.0)
         rainfall_frame = ttk.Frame(left_input)
         rainfall_frame.pack(fill=tk.X, pady=2)
@@ -219,7 +219,7 @@ class FloodPredictionGUI:
         rainfall_scale.config(command=lambda v: self.rainfall_value_label.config(text=f"{float(v):.1f}mm"))
         
         # Wind speed
-        ttk.Label(left_input, text="Tốc độ gió (km/h):").pack(anchor='w', pady=(10,0))
+        ttk.Label(left_input, text="Wind Speed (km/h):").pack(anchor='w', pady=(10,0))
         self.wind_var = tk.DoubleVar(value=10.0)
         wind_frame = ttk.Frame(left_input)
         wind_frame.pack(fill=tk.X, pady=2)
@@ -231,10 +231,10 @@ class FloodPredictionGUI:
         wind_scale.config(command=lambda v: self.wind_value_label.config(text=f"{int(float(v))}km/h"))
         
         # Right column - River data
-        ttk.Label(right_input, text="Dữ liệu mực nước sông:", style='Header.TLabel').pack(anchor='w')
+        ttk.Label(right_input, text="River Data:", style='Header.TLabel').pack(anchor='w')
         
         # Water level
-        ttk.Label(right_input, text="Mực nước (cm):").pack(anchor='w', pady=(10,0))
+        ttk.Label(right_input, text="Water Level (cm):").pack(anchor='w', pady=(10,0))
         self.water_level_var = tk.DoubleVar(value=150.0)
         water_frame = ttk.Frame(right_input)
         water_frame.pack(fill=tk.X, pady=2)
@@ -246,7 +246,7 @@ class FloodPredictionGUI:
         water_scale.config(command=lambda v: self.water_value_label.config(text=f"{int(float(v))}cm"))
         
         # Flow rate
-        ttk.Label(right_input, text="Lưu lượng (m³/s):").pack(anchor='w', pady=(10,0))
+        ttk.Label(right_input, text="Flow Rate (m³/s):").pack(anchor='w', pady=(10,0))
         self.flow_rate_var = tk.DoubleVar(value=800.0)
         flow_frame = ttk.Frame(right_input)
         flow_frame.pack(fill=tk.X, pady=2)
@@ -258,14 +258,14 @@ class FloodPredictionGUI:
         flow_scale.config(command=lambda v: self.flow_value_label.config(text=f"{int(float(v))}m³/s"))
         
         # Trend
-        ttk.Label(right_input, text="Xu hướng mực nước:").pack(anchor='w', pady=(10,0))
+        ttk.Label(right_input, text="Water Level Trend:").pack(anchor='w', pady=(10,0))
         self.trend_var = tk.StringVar(value="stable")
         trend_combo = ttk.Combobox(right_input, textvariable=self.trend_var, 
                                   values=["stable", "rising", "falling"], state="readonly")
         trend_combo.pack(fill=tk.X, pady=2)
         
         # Location
-        ttk.Label(right_input, text="Địa điểm:").pack(anchor='w', pady=(10,0))
+        ttk.Label(right_input, text="Location:").pack(anchor='w', pady=(10,0))
         self.location_var = tk.StringVar(value="Hanoi")
         location_combo = ttk.Combobox(right_input, textvariable=self.location_var,
                                      values=["Hanoi", "Ho_Chi_Minh_City", "Da_Nang", 
@@ -273,12 +273,12 @@ class FloodPredictionGUI:
         location_combo.pack(fill=tk.X, pady=2)
         
         # Predict button
-        predict_btn = ttk.Button(right_input, text="DỰ BÁO LŨ LỤT", 
+        predict_btn = ttk.Button(right_input, text="PREDICT FLOOD", 
                                 command=self.perform_prediction, style='Accent.TButton')
         predict_btn.pack(pady=20, ipadx=20, ipady=10)
         
-        # Frame dưới - Kết quả
-        result_frame = ttk.LabelFrame(prediction_frame, text="Kết quả dự báo", padding=10)
+        # Bottom frame - Results
+        result_frame = ttk.LabelFrame(prediction_frame, text="Prediction Results", padding=10)
         result_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Left result - Text result
@@ -292,7 +292,7 @@ class FloodPredictionGUI:
         result_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Right result - Risk visualization
-        right_result = ttk.LabelFrame(result_frame, text="Hiển thị trực quan", padding=10)
+        right_result = ttk.LabelFrame(result_frame, text="Visual Display", padding=10)
         right_result.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
         # Risk level display
@@ -300,36 +300,36 @@ class FloodPredictionGUI:
         self.risk_display_frame.pack(fill=tk.BOTH, expand=True)
 
     def create_data_tab(self):
-        """Tab Dữ liệu - Quản lý và xem dữ liệu"""
+        """Data Tab - Manage and view data"""
         data_frame = ttk.Frame(self.notebook)
-        self.notebook.add(data_frame, text="Dữ liệu")
+        self.notebook.add(data_frame, text="Data")
         
         # Control panel
-        control_frame = ttk.LabelFrame(data_frame, text="Điều khiển dữ liệu", padding=10)
+        control_frame = ttk.LabelFrame(data_frame, text="Data Control", padding=10)
         control_frame.pack(fill=tk.X, padx=10, pady=5)
         
         # Buttons row 1
         btn_frame1 = ttk.Frame(control_frame)
         btn_frame1.pack(fill=tk.X, pady=2)
         
-        ttk.Button(btn_frame1, text="Crawl thời tiết", 
+        ttk.Button(btn_frame1, text="Crawl Weather", 
                   command=self.crawl_weather_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame1, text="Crawl mực nước", 
+        ttk.Button(btn_frame1, text="Crawl River", 
                   command=self.crawl_river_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame1, text="Làm mới dữ liệu", 
+        ttk.Button(btn_frame1, text="Refresh Data", 
                   command=self.refresh_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame1, text="Dọn dẹp DB", 
+        ttk.Button(btn_frame1, text="Cleanup DB", 
                   command=self.cleanup_database).pack(side=tk.LEFT, padx=5)
         
         # Data display
-        data_display_frame = ttk.LabelFrame(data_frame, text="Dữ liệu hiện tại", padding=10)
+        data_display_frame = ttk.LabelFrame(data_frame, text="Current Data", padding=10)
         data_display_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Treeview frame
         tree_frame = ttk.Frame(data_display_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Treeview cho hiển thị dữ liệu
+        # Treeview for data display
         columns = ['Location', 'Time', 'Temperature', 'Humidity', 'Rainfall', 'Water_Level', 'Risk']
         self.data_tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=20)
         
@@ -352,45 +352,45 @@ class FloodPredictionGUI:
         h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
 
     def create_reports_tab(self):
-        """Tab Báo cáo - Thống kê và biểu đồ"""
+        """Reports Tab - Statistics and charts"""
         reports_frame = ttk.Frame(self.notebook)
-        self.notebook.add(reports_frame, text="Báo cáo")
+        self.notebook.add(reports_frame, text="Reports")
         
         # Control frame
-        control_frame = ttk.LabelFrame(reports_frame, text="Tùy chọn báo cáo", padding=10)
+        control_frame = ttk.LabelFrame(reports_frame, text="Report Options", padding=10)
         control_frame.pack(fill=tk.X, padx=10, pady=5)
         
         # Date range selection
-        ttk.Label(control_frame, text="Thời gian:").pack(side=tk.LEFT)
-        self.date_range_var = tk.StringVar(value="7 ngày")
+        ttk.Label(control_frame, text="Time Range:").pack(side=tk.LEFT)
+        self.date_range_var = tk.StringVar(value="7 days")
         date_combo = ttk.Combobox(control_frame, textvariable=self.date_range_var,
-                                 values=["1 ngày", "7 ngày", "30 ngày", "Tất cả"],
+                                 values=["1 day", "7 days", "30 days", "All"],
                                  state="readonly", width=15)
         date_combo.pack(side=tk.LEFT, padx=5)
         
-        ttk.Button(control_frame, text="Tạo báo cáo", 
+        ttk.Button(control_frame, text="Generate Report", 
                   command=self.generate_reports).pack(side=tk.LEFT, padx=10)
-        ttk.Button(control_frame, text="Xuất Excel", 
+        ttk.Button(control_frame, text="Export to Excel", 
                   command=self.export_to_excel).pack(side=tk.LEFT, padx=5)
         
         # Charts frame
-        charts_frame = ttk.LabelFrame(reports_frame, text="Biểu đồ phân tích", padding=10)
+        charts_frame = ttk.LabelFrame(reports_frame, text="Analysis Charts", padding=10)
         charts_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Matplotlib figure for reports
         self.reports_fig, self.reports_axes = plt.subplots(2, 2, figsize=(12, 8))
-        self.reports_fig.suptitle("Báo cáo phân tích dữ liệu lũ lụt")
+        self.reports_fig.suptitle("Flood Data Analysis Report")
         
         self.reports_canvas = FigureCanvasTkAgg(self.reports_fig, charts_frame)
         self.reports_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def create_settings_tab(self):
-        """Tab Cài đặt - Cấu hình hệ thống"""
+        """Settings Tab - System configuration"""
         settings_frame = ttk.Frame(self.notebook)
-        self.notebook.add(settings_frame, text="Cài đặt")
+        self.notebook.add(settings_frame, text="Settings")
         
         # Database settings
-        db_frame = ttk.LabelFrame(settings_frame, text="Cài đặt Database", padding=15)
+        db_frame = ttk.LabelFrame(settings_frame, text="Database Settings", padding=15)
         db_frame.pack(fill=tk.X, padx=10, pady=5)
         
         # Create grid
@@ -413,11 +413,11 @@ class FloodPredictionGUI:
         # Buttons
         btn_frame = ttk.Frame(db_frame)
         btn_frame.grid(row=4, column=0, columnspan=2, pady=15)
-        ttk.Button(btn_frame, text="Test kết nối", command=self.test_db_connection).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Lưu cài đặt", command=self.save_db_settings).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Test Connection", command=self.test_db_connection).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Save Settings", command=self.save_db_settings).pack(side=tk.LEFT, padx=5)
         
         # API settings
-        api_frame = ttk.LabelFrame(settings_frame, text="Cài đặt API", padding=15)
+        api_frame = ttk.LabelFrame(settings_frame, text="API Settings", padding=15)
         api_frame.pack(fill=tk.X, padx=10, pady=5)
         
         ttk.Label(api_frame, text="Windy API Key:").grid(row=0, column=0, sticky='w', pady=5)
@@ -427,13 +427,13 @@ class FloodPredictionGUI:
         api_btn_frame = ttk.Frame(api_frame)
         api_btn_frame.grid(row=1, column=0, columnspan=2, pady=10)
         ttk.Button(api_btn_frame, text="Test API", command=self.test_api_key).pack(side=tk.LEFT, padx=5)
-        ttk.Button(api_btn_frame, text="Lưu API Key", command=self.save_api_key).pack(side=tk.LEFT, padx=5)
+        ttk.Button(api_btn_frame, text="Save API Key", command=self.save_api_key).pack(side=tk.LEFT, padx=5)
         
         # Model settings
-        model_frame = ttk.LabelFrame(settings_frame, text="Cài đặt Mô hình", padding=15)
+        model_frame = ttk.LabelFrame(settings_frame, text="Model Settings", padding=15)
         model_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        ttk.Label(model_frame, text="Số cây Random Forest:").grid(row=0, column=0, sticky='w', pady=5)
+        ttk.Label(model_frame, text="Number of Random Forest Trees:").grid(row=0, column=0, sticky='w', pady=5)
         self.n_estimators_var = tk.IntVar(value=150)
         estimators_frame = ttk.Frame(model_frame)
         estimators_frame.grid(row=0, column=1, sticky='ew', padx=10, pady=5)
@@ -442,7 +442,7 @@ class FloodPredictionGUI:
         self.estimators_label = ttk.Label(estimators_frame, text="150")
         self.estimators_label.pack(side=tk.RIGHT)
         
-        ttk.Label(model_frame, text="Độ sâu tối đa:").grid(row=1, column=0, sticky='w', pady=5)
+        ttk.Label(model_frame, text="Max Depth:").grid(row=1, column=0, sticky='w', pady=5)
         self.max_depth_var = tk.IntVar(value=10)
         depth_frame = ttk.Frame(model_frame)
         depth_frame.grid(row=1, column=1, sticky='ew', padx=10, pady=5)
@@ -452,18 +452,18 @@ class FloodPredictionGUI:
         self.depth_label.pack(side=tk.RIGHT)
 
     def create_status_bar(self):
-        """Tạo status bar"""
+        """Create status bar"""
         self.status_bar = ttk.Frame(self.root, relief=tk.SUNKEN, borderwidth=1)
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
         
-        self.status_label = ttk.Label(self.status_bar, text="Sẵn sàng", relief=tk.SUNKEN)
+        self.status_label = ttk.Label(self.status_bar, text="Ready", relief=tk.SUNKEN)
         self.status_label.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5, pady=2)
         
         self.progress_bar = ttk.Progressbar(self.status_bar, length=200, mode='indeterminate')
         self.progress_bar.pack(side=tk.RIGHT, padx=5, pady=2)
 
     def update_status(self, message, show_progress=False):
-        """Cập nhật status bar"""
+        """Update status bar"""
         self.status_label.config(text=message)
         if show_progress:
             self.progress_bar.start()
@@ -472,49 +472,49 @@ class FloodPredictionGUI:
         self.root.update_idletasks()
 
     def check_database_connection(self):
-        """Kiểm tra kết nối database"""
+        """Check database connection"""
         try:
             conn = get_connection()
             if conn:
-                self.db_status_label.config(text="Kết nối thành công", style='Success.TLabel')
+                self.db_status_label.config(text="Connection Successful", style='Success.TLabel')
                 close_connection(conn)
             else:
-                self.db_status_label.config(text="Không kết nối được", style='Error.TLabel')
+                self.db_status_label.config(text="Not Connected", style='Error.TLabel')
         except Exception as e:
-            self.db_status_label.config(text=f"Lỗi: {str(e)}", style='Error.TLabel')
+            self.db_status_label.config(text=f"Error: {str(e)}", style='Error.TLabel')
 
     def refresh_dashboard(self):
-        """Làm mới dashboard"""
-        self.update_status("Đang làm mới dashboard...", True)
+        """Refresh dashboard"""
+        self.update_status("Refreshing dashboard...", True)
         
         try:
-            # Kiểm tra database
+            # Check database
             self.check_database_connection()
             
-            # Cập nhật thống kê dữ liệu
+            # Update data summary
             self.update_data_summary()
             
-            # Cập nhật biểu đồ
+            # Update charts
             self.update_dashboard_charts()
             
-            self.update_status("Dashboard đã được làm mới")
+            self.update_status("Dashboard refreshed")
         except Exception as e:
-            self.update_status(f"Lỗi làm mới dashboard: {str(e)}")
-            messagebox.showerror("Lỗi", f"Không thể làm mới dashboard:\n{str(e)}")
+            self.update_status(f"Error refreshing dashboard: {str(e)}")
+            messagebox.showerror("Error", f"Cannot refresh dashboard:\n{str(e)}")
 
     def update_data_summary(self):
-        """Cập nhật thống kê dữ liệu"""
+        """Update data statistics"""
         try:
             self.data_summary_text.delete(1.0, tk.END)
             
             conn = get_connection()
             if not conn:
-                self.data_summary_text.insert(tk.END, "Không thể kết nối database")
+                self.data_summary_text.insert(tk.END, "Cannot connect to database")
                 return
             
             cursor = conn.cursor()
             
-            # Đếm records
+            # Count records
             try:
                 cursor.execute("SELECT COUNT(*) FROM rainfall_data")
                 weather_count = cursor.fetchone()[0]
@@ -533,21 +533,21 @@ class FloodPredictionGUI:
             except:
                 prediction_count = 0
             
-            # Dữ liệu mới nhất
+            # Latest data
             try:
                 cursor.execute("SELECT MAX(created_at) FROM rainfall_data")
                 latest_weather = cursor.fetchone()[0]
             except:
                 latest_weather = "N/A"
             
-            summary = f"""Dữ liệu thời tiết: {weather_count} records
-Dữ liệu mực nước: {river_count} records  
-Dự báo đã tạo: {prediction_count} records
+            summary = f"""Weather Data: {weather_count} records
+River Data: {river_count} records  
+Predictions Made: {prediction_count} records
 
-Dữ liệu mới nhất: {latest_weather}
+Latest Data: {latest_weather}
 
-Trạng thái: {'Đầy đủ' if river_count > 0 else 'Chỉ có thời tiết'}
-Mô hình: {'3 cấp độ' if river_count > 0 else '2 cấp độ'}
+Status: {'Complete' if river_count > 0 else 'Weather Only'}
+Model: {'3 Levels' if river_count > 0 else '2 Levels'}
 """
             
             self.data_summary_text.insert(tk.END, summary)
@@ -556,10 +556,10 @@ Mô hình: {'3 cấp độ' if river_count > 0 else '2 cấp độ'}
             close_connection(conn)
             
         except Exception as e:
-            self.data_summary_text.insert(tk.END, f"Lỗi: {str(e)}")
+            self.data_summary_text.insert(tk.END, f"Error: {str(e)}")
 
     def update_dashboard_charts(self):
-        """Cập nhật biểu đồ dashboard"""
+        """Update dashboard charts"""
         try:
             # Clear previous plots
             for ax in self.dashboard_axes.flat:
@@ -572,7 +572,7 @@ Mô hình: {'3 cấp độ' if river_count > 0 else '2 cấp độ'}
             
             if df is None or len(df) == 0:
                 # No data available
-                self.dashboard_axes[0,0].text(0.5, 0.5, 'Không có dữ liệu', 
+                self.dashboard_axes[0,0].text(0.5, 0.5, 'No data', 
                                             ha='center', va='center', transform=self.dashboard_axes[0,0].transAxes)
                 self.dashboard_canvas.draw()
                 return
@@ -581,7 +581,7 @@ Mô hình: {'3 cấp độ' if river_count > 0 else '2 cấp độ'}
             if len(df) > 0 and 'temperature' in df.columns:
                 temps = df['temperature'].tail(20).values
                 self.dashboard_axes[0,0].plot(temps, 'b-o', markersize=3)
-                self.dashboard_axes[0,0].set_title('Xu hướng nhiệt độ (20 mẫu gần nhất)')
+                self.dashboard_axes[0,0].set_title('Temperature Trend (Last 20 Samples)')
                 self.dashboard_axes[0,0].set_ylabel('°C')
                 self.dashboard_axes[0,0].grid(True, alpha=0.3)
             
@@ -590,9 +590,9 @@ Mô hình: {'3 cấp độ' if river_count > 0 else '2 cấp độ'}
                 rainfall_data = df['rainfall_1h'].values
                 rainfall_data = rainfall_data[rainfall_data >= 0]  # Remove negative values
                 self.dashboard_axes[0,1].hist(rainfall_data, bins=15, alpha=0.7, color='skyblue', edgecolor='black')
-                self.dashboard_axes[0,1].set_title('Phân bố lượng mưa')
+                self.dashboard_axes[0,1].set_title('Rainfall Distribution')
                 self.dashboard_axes[0,1].set_xlabel('mm/h')
-                self.dashboard_axes[0,1].set_ylabel('Tần suất')
+                self.dashboard_axes[0,1].set_ylabel('Frequency')
             
             # Chart 3: Risk levels (if available)
             if 'flood_risk_level' in df.columns:
@@ -604,21 +604,21 @@ Mô hình: {'3 cấp độ' if river_count > 0 else '2 cấp độ'}
                                                 labels=[labels[i] for i in risk_counts.index],
                                                 colors=[colors[i] for i in risk_counts.index],
                                                 autopct='%1.1f%%', startangle=90)
-                    self.dashboard_axes[1,0].set_title('Phân bố mức độ nguy cơ')
+                    self.dashboard_axes[1,0].set_title('Risk Level Distribution')
             elif 'flood_risk' in df.columns:
                 risk_counts = df['flood_risk'].value_counts()
-                labels = ['Không lũ', 'Có lũ']
+                labels = ['No Flood', 'Flood']
                 colors = ['green', 'red']
                 if len(risk_counts) > 0:
                     self.dashboard_axes[1,0].pie(risk_counts.values, labels=labels, 
                                                 colors=colors, autopct='%1.1f%%', startangle=90)
-                    self.dashboard_axes[1,0].set_title('Phân bố nguy cơ lũ')
+                    self.dashboard_axes[1,0].set_title('Flood Risk Distribution')
             
             # Chart 4: Water level trend (if available)
             if 'water_level' in df.columns:
                 water_levels = df['water_level'].tail(20).values
                 self.dashboard_axes[1,1].plot(water_levels, 'r-o', markersize=3)
-                self.dashboard_axes[1,1].set_title('Xu hướng mực nước (20 mẫu gần nhất)')
+                self.dashboard_axes[1,1].set_title('Water Level Trend (Last 20 Samples)')
                 self.dashboard_axes[1,1].set_ylabel('cm')
                 self.dashboard_axes[1,1].grid(True, alpha=0.3)
                 
@@ -637,7 +637,7 @@ Mô hình: {'3 cấp độ' if river_count > 0 else '2 cấp độ'}
                 if 'humidity' in df.columns:
                     humidity_data = df['humidity'].tail(20).values
                     self.dashboard_axes[1,1].plot(humidity_data, 'g-o', markersize=3)
-                    self.dashboard_axes[1,1].set_title('Xu hướng độ ẩm')
+                    self.dashboard_axes[1,1].set_title('Humidity Trend')
                     self.dashboard_axes[1,1].set_ylabel('%')
                     self.dashboard_axes[1,1].grid(True, alpha=0.3)
             
@@ -645,19 +645,19 @@ Mô hình: {'3 cấp độ' if river_count > 0 else '2 cấp độ'}
             self.dashboard_canvas.draw()
             
         except Exception as e:
-            print(f"Lỗi cập nhật biểu đồ: {e}")
+            print(f"Error updating charts: {e}")
             # Show error in first plot
             try:
-                self.dashboard_axes[0,0].text(0.5, 0.5, f'Lỗi: {str(e)}', 
+                self.dashboard_axes[0,0].text(0.5, 0.5, f'Error: {str(e)}', 
                                             ha='center', va='center', transform=self.dashboard_axes[0,0].transAxes)
                 self.dashboard_canvas.draw()
             except:
                 pass
 
     def perform_prediction(self):
-        """Thực hiện dự báo lũ lụt"""
+        """Perform flood prediction"""
         if self.model is None:
-            messagebox.showwarning("Cảnh báo", "Chưa có mô hình. Vui lòng huấn luyện mô hình trước!")
+            messagebox.showwarning("Warning", "No model available. Please train a model first!")
             return
         
         try:
@@ -696,15 +696,15 @@ Mô hình: {'3 cấp độ' if river_count > 0 else '2 cấp độ'}
             if result:
                 self.display_prediction_result(result, input_data)
             else:
-                messagebox.showerror("Lỗi", "Không thể thực hiện dự báo!")
+                messagebox.showerror("Error", "Unable to perform prediction!")
                 
         except Exception as e:
-            messagebox.showerror("Lỗi", f"Lỗi khi dự báo: {str(e)}")
+            messagebox.showerror("Error", f"Prediction error: {str(e)}")
             import traceback
             print(traceback.format_exc())
 
     def calculate_alert_level(self, water_level):
-        """Tính toán mức báo động dựa trên mực nước"""
+        """Calculate alert level based on water level"""
         if water_level >= 270:
             return 3
         elif water_level >= 220:
@@ -715,7 +715,7 @@ Mô hình: {'3 cấp độ' if river_count > 0 else '2 cấp độ'}
             return 0
 
     def display_prediction_result(self, result, input_data):
-        """Hiển thị kết quả dự báo"""
+        """Display prediction result"""
         # Clear previous results
         self.result_text.delete(1.0, tk.END)
         
@@ -725,33 +725,33 @@ Mô hình: {'3 cấp độ' if river_count > 0 else '2 cấp độ'}
         
         # Display text result
         result_text = f"""{'='*50}
-KẾT QUỢ DỰ BÁO LŨ LỤT
+FLOOD PREDICTION RESULT
 {'='*50}
 
-Địa điểm: {self.location_var.get()}
-Thời gian: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-Mô hình: {'Nâng cao (3 cấp độ)' if self.is_advanced else 'Cơ bản (2 cấp độ)'}
+Location: {self.location_var.get()}
+Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Model: {'Advanced (3 Levels)' if self.is_advanced else 'Basic (2 Levels)'}
 
 {'='*50}
-DỮ LIỆU ĐẦU VÀO:
+INPUT DATA:
 {'='*50}
-- Nhiệt độ: {input_data['temperature']:.1f}°C
-- Độ ẩm: {input_data['humidity']:.0f}%
-- Áp suất: {input_data['pressure']:.0f} hPa
-- Lượng mưa 1h: {input_data['rainfall_1h']:.1f} mm
-- Lượng mưa 3h: {input_data['rainfall_3h']:.1f} mm
-- Tốc độ gió: {input_data['wind_speed']:.0f} km/h
+- Temperature: {input_data['temperature']:.1f}°C
+- Humidity: {input_data['humidity']:.0f}%
+- Pressure: {input_data['pressure']:.0f} hPa
+- Rainfall 1h: {input_data['rainfall_1h']:.1f} mm
+- Rainfall 3h: {input_data['rainfall_3h']:.1f} mm
+- Wind Speed: {input_data['wind_speed']:.0f} km/h
 """
         
         if self.is_advanced and 'water_level' in input_data:
-            result_text += f"""- Mực nước: {input_data['water_level']:.0f} cm
-- Lưu lượng: {input_data.get('flow_rate', 0):.0f} m³/s
-- Xu hướng: {self.trend_var.get()}
-- Mức báo động: {input_data.get('alert_level_exceeded', 0)}
+            result_text += f"""- Water Level: {input_data['water_level']:.0f} cm
+- Flow Rate: {input_data.get('flow_rate', 0):.0f} m³/s
+- Trend: {self.trend_var.get()}
+- Alert Level: {input_data.get('alert_level_exceeded', 0)}
 """
         
         result_text += f"""\n{'='*50}
-KẾT QUẢ DỰ BÁO:
+PREDICTION RESULT:
 {'='*50}
 """
         
@@ -759,10 +759,10 @@ KẾT QUẢ DỰ BÁO:
             risk_level = result['risk_level']
             confidence = result['confidence']
             
-            result_text += f"""Mức độ nguy cơ: {risk_level}
-Độ tin cậy: {confidence:.1%}
+            result_text += f"""Risk Level: {risk_level}
+Confidence: {confidence:.1%}
 
-Xác suất từng cấp độ:
+Probability per Level:
 """
             
             for level, prob in result['probabilities'].items():
@@ -775,77 +775,77 @@ Xác suất từng cấp độ:
             flood_prob = result['probability_flood']
             confidence = result['confidence']
             
-            result_text += f"""Xác suất lũ lụt: {flood_prob:.1%}
-Độ tin cậy: {confidence:.1%}
+            result_text += f"""Flood Probability: {flood_prob:.1%}
+Confidence: {confidence:.1%}
 """
             
             # Determine risk level for basic model
             if flood_prob < 0.3:
-                risk_level = "THẤP"
+                risk_level = "LOW"
                 color = "green"
             elif flood_prob < 0.7:
-                risk_level = "TRUNG BÌNH"
+                risk_level = "MODERATE"
                 color = "orange"
             else:
-                risk_level = "CAO"
+                risk_level = "HIGH"
                 color = "red"
             
-            result_text += f"Mức độ nguy cơ: {risk_level}\n"
+            result_text += f"Risk Level: {risk_level}\n"
             
             # Create simple risk display for basic model
             self.create_simple_risk_display(risk_level, flood_prob, color)
         
         # Add recommendations
         result_text += f"""\n{'='*50}
-KHUYẾN NGHỊ:
+RECOMMENDATIONS:
 {'='*50}
 """
         if self.is_advanced:
             if result['risk_level'] == 'HIGH':
-                result_text += """NGUY CƠ CAO - Cần có biện pháp ứng phó khẩn cấp!
-- Sơ tán dân cư vùng nguy hiểm
-- Chuẩn bị vật tư cứu trợ khẩn cấp
-- Theo dõi mực nước liên tục
-- Kích hoạt đội ứng phó khẩn cấp
-- Thông báo cảnh báo đến tất cả khu vực
+                result_text += """HIGH RISK - Emergency response required!
+- Evacuate residents in danger zones
+- Prepare emergency relief supplies
+- Continuously monitor water levels
+- Activate emergency response team
+- Issue warnings to all areas
 """
             elif result['risk_level'] == 'MODERATE':
-                result_text += """NGUY CƠ TRUNG BÌNH - Theo dõi chặt chẽ
-- Chuẩn bị sẵn sàng biện pháp ứng phó
-- Thông báo người dân ở vùng trũng thấp
-- Kiểm tra hệ thống thoát nước
-- Theo dõi dự báo thời tiết liên tục
+                result_text += """MODERATE RISK - Closely monitor
+- Prepare response measures
+- Notify residents in low-lying areas
+- Check drainage systems
+- Continuously monitor weather forecasts
 """
             else:
-                result_text += """NGUY CƠ THẤP - Tiếp tục theo dõi
-- Duy trì hoạt động bình thường
-- Theo dõi thông tin thời tiết định kỳ
-- Kiểm tra hệ thống cảnh báo
+                result_text += """LOW RISK - Continue monitoring
+- Maintain normal operations
+- Periodically check weather updates
+- Check warning systems
 """
         else:
             if flood_prob > 0.7:
-                result_text += """NGUY CƠ CAO - Cần chú ý!
-- Theo dõi chặt chẽ diễn biến thời tiết
-- Chuẩn bị biện pháp ứng phó
-- Kiểm tra hệ thống thoát nước
+                result_text += """HIGH RISK - Take note!
+- Closely monitor weather developments
+- Prepare response measures
+- Check drainage systems
 """
             elif flood_prob > 0.4:
-                result_text += """NGUY CƠ TRUNG BÌNH
-- Tiếp tục theo dõi tình hình
-- Chuẩn bị sẵn sàng nếu cần thiết
+                result_text += """MODERATE RISK
+- Continue monitoring
+- Prepare if necessary
 """
             else:
-                result_text += """NGUY CƠ THẤP
-- Hoạt động bình thường
-- Theo dõi thông tin thời tiết
+                result_text += """LOW RISK
+- Normal operations
+- Monitor weather updates
 """
         
-        result_text += f"\n{'='*50}\nBáo cáo được tạo lúc: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'='*50}"
+        result_text += f"\n{'='*50}\nReport generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'='*50}"
         
         self.result_text.insert(tk.END, result_text)
 
     def create_risk_display(self, risk_level, confidence, probabilities):
-        """Tạo hiển thị trực quan mức độ nguy cơ cho mô hình nâng cao"""
+        """Create visual risk display for advanced model"""
         # Risk level indicator
         risk_colors = {'LOW': '#27ae60', 'MODERATE': '#f39c12', 'HIGH': '#e74c3c'}
         color = risk_colors.get(risk_level, '#95a5a6')
@@ -854,16 +854,16 @@ KHUYẾN NGHỊ:
         risk_frame = tk.Frame(self.risk_display_frame, bg=color, relief=tk.RAISED, bd=3)
         risk_frame.pack(fill=tk.X, pady=10)
         
-        risk_label = tk.Label(risk_frame, text=f"NGUY CƠ {risk_level}", 
+        risk_label = tk.Label(risk_frame, text=f"RISK {risk_level}", 
                              font=('Arial', 18, 'bold'), fg='white', bg=color)
         risk_label.pack(pady=15)
         
-        confidence_label = tk.Label(risk_frame, text=f"Độ tin cậy: {confidence:.1%}",
+        confidence_label = tk.Label(risk_frame, text=f"Confidence: {confidence:.1%}",
                                    font=('Arial', 12), fg='white', bg=color)
         confidence_label.pack(pady=(0, 15))
         
         # Probability bars
-        prob_frame = ttk.LabelFrame(self.risk_display_frame, text="Xác suất các cấp độ")
+        prob_frame = ttk.LabelFrame(self.risk_display_frame, text="Probability per Level")
         prob_frame.pack(fill=tk.X, pady=10)
         
         colors = {'LOW': '#27ae60', 'MODERATE': '#f39c12', 'HIGH': '#e74c3c'}
@@ -891,22 +891,22 @@ KHUYẾN NGHỊ:
             percent_label.pack(side=tk.RIGHT)
 
     def create_simple_risk_display(self, risk_level, probability, color):
-        """Tạo hiển thị đơn giản cho mô hình cơ bản"""
+        """Create simple display for basic model"""
         # Risk indicator
         risk_frame = tk.Frame(self.risk_display_frame, bg=color, relief=tk.RAISED, bd=3)
         risk_frame.pack(fill=tk.X, pady=20)
         
-        risk_label = tk.Label(risk_frame, text=f"NGUY CƠ {risk_level}", 
+        risk_label = tk.Label(risk_frame, text=f"RISK {risk_level}", 
                              font=('Arial', 18, 'bold'), fg='white', bg=color)
         risk_label.pack(pady=20)
         
-        prob_label = tk.Label(risk_frame, text=f"Xác suất lũ: {probability:.1%}",
+        prob_label = tk.Label(risk_frame, text=f"Flood Probability: {probability:.1%}",
                              font=('Arial', 12), fg='white', bg=color)
         prob_label.pack(pady=(0, 20))
 
     def train_prediction_model(self):
-        """Huấn luyện mô hình dự báo"""
-        self.update_status("Đang huấn luyện mô hình...", True)
+        """Train prediction model"""
+        self.update_status("Training model...", True)
         
         def train_in_thread():
             try:
@@ -914,13 +914,13 @@ KHUYẾN NGHỊ:
                 combined_df = load_combined_data()
                 
                 if combined_df is not None and len(combined_df) > 0:
-                    print("Sử dụng dữ liệu kết hợp")
+                    print("Using combined data")
                     real_df = combined_df
                     use_advanced = True
                     real_df = create_flood_labels(real_df)
                     synthetic_df = generate_advanced_training_data(real_df)
                 else:
-                    print("Sử dụng dữ liệu cơ bản")
+                    print("Using basic data")
                     real_df = load_data_from_db()
                     if real_df is None:
                         real_df = pd.DataFrame()
@@ -973,33 +973,33 @@ KHUYẾN NGHỊ:
         threading.Thread(target=train_in_thread, daemon=True).start()
 
     def on_training_complete(self, model, features, is_advanced):
-        """Callback khi huấn luyện hoàn thành"""
+        """Callback when training completes"""
         self.model = model
         self.features = features
         self.is_advanced = is_advanced
         
-        self.update_status("Huấn luyện mô hình hoàn thành!")
+        self.update_status("Model training completed!")
         
         if self.model is not None:
             self.model_status_label.config(
-                text=f"Đã huấn luyện ({'Nâng cao' if self.is_advanced else 'Cơ bản'})",
+                text=f"Trained ({'Advanced' if self.is_advanced else 'Basic'})",
                 style='Success.TLabel'
             )
-            messagebox.showinfo("Thành công", 
-                              f"Mô hình {'nâng cao (3 cấp độ)' if self.is_advanced else 'cơ bản (2 cấp độ)'} đã được huấn luyện thành công!")
+            messagebox.showinfo("Success", 
+                              f"Model {'advanced (3 levels)' if self.is_advanced else 'basic (2 levels)'} trained successfully!")
         else:
-            self.model_status_label.config(text="Huấn luyện thất bại", style='Error.TLabel')
+            self.model_status_label.config(text="Training failed", style='Error.TLabel')
 
     def on_training_error(self, error_msg):
-        """Callback khi có lỗi huấn luyện"""
-        self.update_status(f"Lỗi huấn luyện mô hình")
-        messagebox.showerror("Lỗi", f"Lỗi khi huấn luyện mô hình:\n{error_msg}")
+        """Callback when training error occurs"""
+        self.update_status(f"Error training model")
+        messagebox.showerror("Error", f"Training error:\n{error_msg}")
 
     def run_auto_system(self):
-        """Chạy hệ thống tự động"""
+        """Run auto system"""
         def run_in_thread():
             try:
-                self.root.after(0, lambda: self.update_status("Đang chạy hệ thống tự động...", True))
+                self.root.after(0, lambda: self.update_status("Running auto system...", True))
                 
                 # Run crawlers
                 commands = [
@@ -1012,83 +1012,83 @@ KHUYẾN NGHỊ:
                         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
                         if result.returncode != 0:
                             self.root.after(0, lambda e=result.stderr, c=cmd: 
-                                          messagebox.showerror("Lỗi", f"Lỗi chạy {' '.join(c)}:\n{e}"))
+                                          messagebox.showerror("Error", f"Error running {' '.join(c)}:\n{e}"))
                             return
                     except subprocess.TimeoutExpired:
                         self.root.after(0, lambda c=cmd: 
-                                      messagebox.showerror("Lỗi", f"Timeout chạy {' '.join(c)}"))
+                                      messagebox.showerror("Error", f"Timeout running {' '.join(c)}"))
                         return
                 
                 # Train model after getting data
-                self.root.after(0, lambda: self.update_status("Đang huấn luyện mô hình sau khi crawl dữ liệu...", True))
+                self.root.after(0, lambda: self.update_status("Training model after crawl...", True))
                 self.root.after(1000, self.train_prediction_model)  # Delay to allow UI update
                 
             except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror("Lỗi", f"Lỗi chạy tự động: {str(e)}"))
+                self.root.after(0, lambda: messagebox.showerror("Error", f"Auto run error: {str(e)}"))
         
         threading.Thread(target=run_in_thread, daemon=True).start()
 
     # Database management methods
     def setup_database(self):
-        """Thiết lập database"""
+        """Set up database"""
         try:
             # Import setup function
             from setup_db import setup_database
             result = setup_database()
             if result:
-                messagebox.showinfo("Thành công", "Database đã được thiết lập thành công!")
+                messagebox.showinfo("Success", "Database setup successful!")
                 self.check_database_connection()
             else:
-                messagebox.showerror("Lỗi", "Không thể thiết lập database!")
+                messagebox.showerror("Error", "Unable to set up database!")
         except Exception as e:
-            messagebox.showerror("Lỗi", f"Lỗi thiết lập database: {str(e)}")
+            messagebox.showerror("Error", f"Database setup error: {str(e)}")
 
     def crawl_weather_data(self):
-        """Crawl dữ liệu thời tiết"""
-        self.update_status("Đang crawl dữ liệu thời tiết...", True)
+        """Crawl weather data"""
+        self.update_status("Crawling weather data...", True)
         
         def crawl_in_thread():
             try:
                 result = subprocess.run(["python", "rainfall_crawler.py"], 
                                       capture_output=True, text=True, timeout=120)
                 if result.returncode == 0:
-                    self.root.after(0, lambda: self.update_status("Crawl thời tiết hoàn thành!"))
-                    self.root.after(0, lambda: messagebox.showinfo("Thành công", "Đã crawl dữ liệu thời tiết!"))
+                    self.root.after(0, lambda: self.update_status("Weather crawl completed!"))
+                    self.root.after(0, lambda: messagebox.showinfo("Success", "Weather data crawled!"))
                     self.root.after(0, self.refresh_dashboard)
                 else:
-                    self.root.after(0, lambda: messagebox.showerror("Lỗi", f"Lỗi crawl thời tiết:\n{result.stderr}"))
+                    self.root.after(0, lambda: messagebox.showerror("Error", f"Weather crawl error:\n{result.stderr}"))
             except subprocess.TimeoutExpired:
-                self.root.after(0, lambda: messagebox.showerror("Lỗi", "Timeout khi crawl dữ liệu thời tiết"))
+                self.root.after(0, lambda: messagebox.showerror("Error", "Timeout crawling weather data"))
             except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror("Lỗi", f"Lỗi: {str(e)}"))
+                self.root.after(0, lambda: messagebox.showerror("Error", f"Error: {str(e)}"))
         
         threading.Thread(target=crawl_in_thread, daemon=True).start()
 
     def crawl_river_data(self):
-        """Crawl dữ liệu mực nước sông"""
-        self.update_status("Đang crawl dữ liệu mực nước...", True)
+        """Crawl river water level data"""
+        self.update_status("Crawling river data...", True)
         
         def crawl_in_thread():
             try:
                 result = subprocess.run(["python", "river_level_crawler.py"], 
                                       capture_output=True, text=True, timeout=120)
                 if result.returncode == 0:
-                    self.root.after(0, lambda: self.update_status("Crawl mực nước hoàn thành!"))
-                    self.root.after(0, lambda: messagebox.showinfo("Thành công", "Đã crawl dữ liệu mực nước!"))
+                    self.root.after(0, lambda: self.update_status("River crawl completed!"))
+                    self.root.after(0, lambda: messagebox.showinfo("Success", "River data crawled!"))
                     self.root.after(0, self.refresh_dashboard)
                 else:
-                    self.root.after(0, lambda: messagebox.showerror("Lỗi", f"Lỗi crawl mực nước:\n{result.stderr}"))
+                    self.root.after(0, lambda: messagebox.showerror("Error", f"River crawl error:\n{result.stderr}"))
             except subprocess.TimeoutExpired:
-                self.root.after(0, lambda: messagebox.showerror("Lỗi", "Timeout khi crawl dữ liệu mực nước"))
+                self.root.after(0, lambda: messagebox.showerror("Error", "Timeout crawling river data"))
             except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror("Lỗi", f"Lỗi: {str(e)}"))
+                self.root.after(0, lambda: messagebox.showerror("Error", f"Error: {str(e)}"))
         
         threading.Thread(target=crawl_in_thread, daemon=True).start()
 
     def refresh_data(self):
-        """Làm mới dữ liệu hiển thị"""
+        """Refresh displayed data"""
         try:
-            self.update_status("Đang tải dữ liệu...", True)
+            self.update_status("Loading data...", True)
             
             # Clear treeview
             for item in self.data_tree.get_children():
@@ -1116,17 +1116,17 @@ KHUYẾN NGHỊ:
                     ]
                     self.data_tree.insert('', 'end', values=values)
             
-            self.update_status(f"Đã tải {len(df) if df is not None else 0} records")
+            self.update_status(f"Loaded {len(df) if df is not None else 0} records")
             
         except Exception as e:
-            self.update_status("Lỗi tải dữ liệu")
-            messagebox.showerror("Lỗi", f"Lỗi làm mới dữ liệu: {str(e)}")
+            self.update_status("Error loading data")
+            messagebox.showerror("Error", f"Error refreshing data: {str(e)}")
 
     def cleanup_database(self):
-        """Dọn dẹp database"""
-        if messagebox.askyesno("Xác nhận", "Bạn có chắc muốn dọn dẹp database?\nThao tác này sẽ xóa dữ liệu cũ và trùng lặp."):
+        """Clean up database"""
+        if messagebox.askyesno("Confirmation", "Are you sure you want to clean up the database?\nThis will remove old and duplicate data."):
             try:
-                self.update_status("Đang dọn dẹp database...", True)
+                self.update_status("Cleaning up database...", True)
                 
                 conn = get_connection()
                 if conn:
@@ -1156,50 +1156,50 @@ KHUYẾN NGHỊ:
                     cursor.close()
                     close_connection(conn)
                     
-                    self.update_status("Dọn dẹp database hoàn thành")
-                    messagebox.showinfo("Thành công", "Đã dọn dẹp database!")
+                    self.update_status("Database cleanup completed")
+                    messagebox.showinfo("Success", "Database cleaned up!")
                     self.refresh_dashboard()
                 else:
-                    messagebox.showerror("Lỗi", "Không thể kết nối database")
+                    messagebox.showerror("Error", "Cannot connect to database")
                     
             except Exception as e:
-                self.update_status("Lỗi dọn dẹp database")
-                messagebox.showerror("Lỗi", f"Lỗi dọn dẹp database: {str(e)}")
+                self.update_status("Error cleaning database")
+                messagebox.showerror("Error", f"Database cleanup error: {str(e)}")
 
     def manage_database(self):
-        """Mở công cụ quản lý database"""
+        """Open database management tool"""
         try:
             subprocess.Popen(["python", "database_manager.py"])
         except Exception as e:
-            messagebox.showerror("Lỗi", f"Không thể mở database manager: {str(e)}")
+            messagebox.showerror("Error", f"Cannot open database manager: {str(e)}")
 
     def evaluate_model(self):
-        """Đánh giá mô hình"""
+        """Evaluate model"""
         if self.model is None:
-            messagebox.showwarning("Cảnh báo", "Chưa có mô hình để đánh giá!\nVui lòng huấn luyện mô hình trước.")
+            messagebox.showwarning("Warning", "No model to evaluate!\nPlease train a model first.")
             return
         
-        info_text = f"""THÔNG TIN MÔ HÌNH:
+        info_text = f"""MODEL INFORMATION:
 
-Loại: {'Nâng cao (3 cấp độ)' if self.is_advanced else 'Cơ bản (2 cấp độ)'}
-Số đặc trưng: {len(self.features) if self.features else 0}
-Đặc trưng sử dụng: {', '.join(self.features) if self.features else 'N/A'}
+Type: {'Advanced (3 Levels)' if self.is_advanced else 'Basic (2 Levels)'}
+Number of Features: {len(self.features) if self.features else 0}
+Features Used: {', '.join(self.features) if self.features else 'N/A'}
 
-Trạng thái: Sẵn sàng sử dụng
-Thuật toán: Random Forest Classifier
+Status: Ready to use
+Algorithm: Random Forest Classifier
 
-Khả năng dự báo:
+Prediction Capability:
 - {'LOW, MODERATE, HIGH' if self.is_advanced else 'No Flood, Flood'}
-- Độ tin cậy cao với dữ liệu đầy đủ
-- Tự động điều chỉnh theo loại dữ liệu có sẵn
+- High confidence with complete data
+- Automatically adjusts to available data type
 """
         
-        messagebox.showinfo("Đánh giá mô hình", info_text)
+        messagebox.showinfo("Model Evaluation", info_text)
 
     def generate_reports(self):
-        """Tạo báo cáo"""
+        """Generate report"""
         try:
-            self.update_status("Đang tạo báo cáo...", True)
+            self.update_status("Generating report...", True)
             
             # Clear previous plots
             for ax in self.reports_axes.flat:
@@ -1211,28 +1211,28 @@ Khả năng dự báo:
                 df = load_data_from_db()
             
             if df is None or len(df) == 0:
-                messagebox.showwarning("Cảnh báo", "Không có dữ liệu để tạo báo cáo!")
+                messagebox.showwarning("Warning", "No data to generate report!")
                 return
             
             # Filter by date range
             date_range = self.date_range_var.get()
-            if date_range != "Tất cả" and 'created_at' in df.columns:
-                days_map = {"1 ngày": 1, "7 ngày": 7, "30 ngày": 30}
+            if date_range != "All" and 'created_at' in df.columns:
+                days_map = {"1 day": 1, "7 days": 7, "30 days": 30}
                 days = days_map.get(date_range, 7)
                 
                 cutoff_date = datetime.now() - timedelta(days=days)
                 df = df[pd.to_datetime(df['created_at']) >= cutoff_date]
             
             if len(df) == 0:
-                messagebox.showwarning("Cảnh báo", f"Không có dữ liệu trong khoảng thời gian {date_range}!")
+                messagebox.showwarning("Warning", f"No data in the {date_range} time range!")
                 return
             
             # Chart 1: Temperature vs Rainfall correlation
             if 'temperature' in df.columns and 'rainfall_1h' in df.columns:
                 self.reports_axes[0,0].scatter(df['temperature'], df['rainfall_1h'], alpha=0.6, c='blue')
-                self.reports_axes[0,0].set_title('Mối quan hệ Nhiệt độ - Lượng mưa')
-                self.reports_axes[0,0].set_xlabel('Nhiệt độ (°C)')
-                self.reports_axes[0,0].set_ylabel('Lượng mưa (mm/h)')
+                self.reports_axes[0,0].set_title('Temperature vs Rainfall Correlation')
+                self.reports_axes[0,0].set_xlabel('Temperature (°C)')
+                self.reports_axes[0,0].set_ylabel('Rainfall (mm/h)')
                 self.reports_axes[0,0].grid(True, alpha=0.3)
             
             # Chart 2: Daily rainfall trend
@@ -1241,8 +1241,8 @@ Khả năng dự báo:
                 daily_rainfall = df.groupby('date')['rainfall_1h'].mean()
                 
                 self.reports_axes[0,1].plot(daily_rainfall.index, daily_rainfall.values, 'g-o', markersize=4)
-                self.reports_axes[0,1].set_title('Xu hướng lượng mưa theo ngày')
-                self.reports_axes[0,1].set_ylabel('Lượng mưa TB (mm/h)')
+                self.reports_axes[0,1].set_title('Daily Rainfall Trend')
+                self.reports_axes[0,1].set_ylabel('Average Rainfall (mm/h)')
                 self.reports_axes[0,1].tick_params(axis='x', rotation=45)
                 self.reports_axes[0,1].grid(True, alpha=0.3)
             
@@ -1254,9 +1254,9 @@ Khả năng dự báo:
                 
                 bars = self.reports_axes[1,0].bar(range(len(risk_counts)), risk_counts.values, 
                                                  color=[colors[i] for i in risk_counts.index])
-                self.reports_axes[1,0].set_title('Phân bố mức độ nguy cơ')
-                self.reports_axes[1,0].set_xlabel('Mức độ nguy cơ')
-                self.reports_axes[1,0].set_ylabel('Số lần')
+                self.reports_axes[1,0].set_title('Risk Level Distribution')
+                self.reports_axes[1,0].set_xlabel('Risk Level')
+                self.reports_axes[1,0].set_ylabel('Occurrences')
                 self.reports_axes[1,0].set_xticks(range(len(risk_counts)))
                 self.reports_axes[1,0].set_xticklabels([labels[i] for i in risk_counts.index])
                 
@@ -1269,9 +1269,9 @@ Khả năng dự báo:
             if 'water_level' in df.columns:
                 water_levels = df['water_level'].values
                 self.reports_axes[1,1].hist(water_levels, bins=20, alpha=0.7, color='cyan', edgecolor='black')
-                self.reports_axes[1,1].set_title('Phân bố mực nước')
-                self.reports_axes[1,1].set_xlabel('Mực nước (cm)')
-                self.reports_axes[1,1].set_ylabel('Tần suất')
+                self.reports_axes[1,1].set_title('Water Level Distribution')
+                self.reports_axes[1,1].set_xlabel('Water Level (cm)')
+                self.reports_axes[1,1].set_ylabel('Frequency')
                 
                 # Add alert level lines
                 self.reports_axes[1,1].axvline(x=180, color='yellow', linestyle='--', alpha=0.8, label='Alert 1')
@@ -1283,24 +1283,24 @@ Khả năng dự báo:
                 if 'humidity' in df.columns:
                     humidity_data = df['humidity'].values
                     self.reports_axes[1,1].hist(humidity_data, bins=20, alpha=0.7, color='lightgreen', edgecolor='black')
-                    self.reports_axes[1,1].set_title('Phân bố độ ẩm')
-                    self.reports_axes[1,1].set_xlabel('Độ ẩm (%)')
-                    self.reports_axes[1,1].set_ylabel('Tần suất')
+                    self.reports_axes[1,1].set_title('Humidity Distribution')
+                    self.reports_axes[1,1].set_xlabel('Humidity (%)')
+                    self.reports_axes[1,1].set_ylabel('Frequency')
             
             plt.tight_layout()
             self.reports_canvas.draw()
             
-            self.update_status(f"Đã tạo báo cáo cho {len(df)} records")
-            messagebox.showinfo("Thành công", f"Đã tạo báo cáo thành công!\nSử dụng {len(df)} records trong {date_range}.")
+            self.update_status(f"Report generated for {len(df)} records")
+            messagebox.showinfo("Success", f"Report generated successfully!\nUsed {len(df)} records in {date_range}.")
             
         except Exception as e:
-            self.update_status("Lỗi tạo báo cáo")
-            messagebox.showerror("Lỗi", f"Lỗi tạo báo cáo: {str(e)}")
+            self.update_status("Error generating report")
+            messagebox.showerror("Error", f"Report generation error: {str(e)}")
             import traceback
             print(traceback.format_exc())
 
     def export_to_excel(self):
-        """Xuất dữ liệu ra Excel"""
+        """Export data to Excel"""
         try:
             # Load data
             df = load_combined_data()
@@ -1308,14 +1308,14 @@ Khả năng dự báo:
                 df = load_data_from_db()
             
             if df is None or len(df) == 0:
-                messagebox.showwarning("Cảnh báo", "Không có dữ liệu để xuất!")
+                messagebox.showwarning("Warning", "No data to export!")
                 return
             
             # Ask for save location
             filename = filedialog.asksaveasfilename(
                 defaultextension=".xlsx",
                 filetypes=[("Excel files", "*.xlsx"), ("CSV files", "*.csv"), ("All files", "*.*")],
-                title="Lưu báo cáo"
+                title="Save Report"
             )
             
             if filename:
@@ -1324,13 +1324,13 @@ Khả năng dự báo:
                 else:
                     df.to_csv(filename, index=False, encoding='utf-8-sig')
                 
-                messagebox.showinfo("Thành công", f"Đã xuất {len(df)} records vào:\n{filename}")
+                messagebox.showinfo("Success", f"Exported {len(df)} records to:\n{filename}")
                 
         except Exception as e:
-            messagebox.showerror("Lỗi", f"Lỗi xuất file: {str(e)}")
+            messagebox.showerror("Error", f"Export error: {str(e)}")
 
     def export_report(self):
-        """Xuất báo cáo chi tiết"""
+        """Export detailed report"""
         try:
             # Create comprehensive report
             df = load_combined_data()
@@ -1338,119 +1338,119 @@ Khả năng dự báo:
                 df = load_data_from_db()
             
             if df is None or len(df) == 0:
-                messagebox.showwarning("Cảnh báo", "Không có dữ liệu để tạo báo cáo!")
+                messagebox.showwarning("Warning", "No data to generate report!")
                 return
             
             # Generate report text
-            report_text = f"""BÁO CÁO HỆ THỐNG DỰ BÁO LŨ LỤT
+            report_text = f"""FLOOD PREDICTION SYSTEM REPORT
 {'='*60}
 
-Thời gian tạo báo cáo: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-Tổng số records: {len(df)}
+Report Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Total Records: {len(df)}
 
-THỐNG KÊ DỮ LIỆU:
+DATA STATISTICS:
 {'='*30}
 """
             
             if 'temperature' in df.columns:
                 report_text += f"""
-Nhiệt độ:
-- Trung bình: {df['temperature'].mean():.1f}°C
+Temperature:
+- Average: {df['temperature'].mean():.1f}°C
 - Min: {df['temperature'].min():.1f}°C
 - Max: {df['temperature'].max():.1f}°C
 """
             
             if 'humidity' in df.columns:
                 report_text += f"""
-Độ ẩm:
-- Trung bình: {df['humidity'].mean():.1f}%
+Humidity:
+- Average: {df['humidity'].mean():.1f}%
 - Min: {df['humidity'].min():.1f}%
 - Max: {df['humidity'].max():.1f}%
 """
             
             if 'rainfall_1h' in df.columns:
                 report_text += f"""
-Lượng mưa:
-- Trung bình: {df['rainfall_1h'].mean():.1f}mm/h
+Rainfall:
+- Average: {df['rainfall_1h'].mean():.1f}mm/h
 - Min: {df['rainfall_1h'].min():.1f}mm/h
 - Max: {df['rainfall_1h'].max():.1f}mm/h
-- Tổng số lần mưa > 10mm/h: {len(df[df['rainfall_1h'] > 10])}
+- Number of times rainfall > 10mm/h: {len(df[df['rainfall_1h'] > 10])}
 """
             
             if 'water_level' in df.columns:
                 report_text += f"""
-Mực nước sông:
-- Trung bình: {df['water_level'].mean():.1f}cm
+River Water Level:
+- Average: {df['water_level'].mean():.1f}cm
 - Min: {df['water_level'].min():.1f}cm
 - Max: {df['water_level'].max():.1f}cm
-- Số lần vượt báo động cấp 1 (>180cm): {len(df[df['water_level'] > 180])}
-- Số lần vượt báo động cấp 2 (>220cm): {len(df[df['water_level'] > 220])}
-- Số lần vượt báo động cấp 3 (>270cm): {len(df[df['water_level'] > 270])}
+- Times exceeding Alert Level 1 (>180cm): {len(df[df['water_level'] > 180])}
+- Times exceeding Alert Level 2 (>220cm): {len(df[df['water_level'] > 220])}
+- Times exceeding Alert Level 3 (>270cm): {len(df[df['water_level'] > 270])}
 """
             
             # Risk analysis
             if 'flood_risk_level' in df.columns:
                 risk_counts = df['flood_risk_level'].value_counts()
                 report_text += f"""
-PHÂN TÍCH NGUY CƠ (3 CẤP ĐỘ):
+RISK ANALYSIS (3 LEVELS):
 {'='*35}
-- Nguy cơ THẤP: {risk_counts.get(0, 0)} lần ({risk_counts.get(0, 0)/len(df)*100:.1f}%)
-- Nguy cơ TRUNG BÌNH: {risk_counts.get(1, 0)} lần ({risk_counts.get(1, 0)/len(df)*100:.1f}%)
-- Nguy cơ CAO: {risk_counts.get(2, 0)} lần ({risk_counts.get(2, 0)/len(df)*100:.1f}%)
+- LOW Risk: {risk_counts.get(0, 0)} times ({risk_counts.get(0, 0)/len(df)*100:.1f}%)
+- MODERATE Risk: {risk_counts.get(1, 0)} times ({risk_counts.get(1, 0)/len(df)*100:.1f}%)
+- HIGH Risk: {risk_counts.get(2, 0)} times ({risk_counts.get(2, 0)/len(df)*100:.1f}%)
 """
             elif 'flood_risk' in df.columns:
                 risk_counts = df['flood_risk'].value_counts()
                 report_text += f"""
-PHÂN TÍCH NGUY CƠ (2 CẤP ĐỘ):
+RISK ANALYSIS (2 LEVELS):
 {'='*35}
-- Không có nguy cơ: {risk_counts.get(0, 0)} lần ({risk_counts.get(0, 0)/len(df)*100:.1f}%)
-- Có nguy cơ lũ: {risk_counts.get(1, 0)} lần ({risk_counts.get(1, 0)/len(df)*100:.1f}%)
+- No Risk: {risk_counts.get(0, 0)} times ({risk_counts.get(0, 0)/len(df)*100:.1f}%)
+- Flood Risk: {risk_counts.get(1, 0)} times ({risk_counts.get(1, 0)/len(df)*100:.1f}%)
 """
             
             report_text += f"""
-KHUYẾN NGHỊ:
+RECOMMENDATIONS:
 {'='*15}
-1. Tiếp tục theo dõi dữ liệu thời tiết và mực nước sông
-2. Cập nhật mô hình dự báo định kỳ
-3. Kiểm tra và bảo trì hệ thống cảnh báo
-4. Đào tạo nhân viên về quy trình ứng phó khẩn cấp
+1. Continue monitoring weather and river data
+2. Periodically update prediction model
+3. Check and maintain warning systems
+4. Train staff on emergency procedures
 
 {'='*60}
-Báo cáo được tạo bởi Hệ thống Dự báo Lũ lụt
+Report generated by Flood Prediction System
 """
             
             # Save report
             filename = filedialog.asksaveasfilename(
                 defaultextension=".txt",
                 filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
-                title="Lưu báo cáo chi tiết"
+                title="Save Detailed Report"
             )
             
             if filename:
                 with open(filename, 'w', encoding='utf-8') as f:
                     f.write(report_text)
                 
-                messagebox.showinfo("Thành công", f"Đã tạo báo cáo chi tiết:\n{filename}")
+                messagebox.showinfo("Success", f"Detailed report created:\n{filename}")
                 
         except Exception as e:
-            messagebox.showerror("Lỗi", f"Lỗi tạo báo cáo: {str(e)}")
+            messagebox.showerror("Error", f"Report creation error: {str(e)}")
 
     # Settings methods
     def test_db_connection(self):
-        """Test kết nối database"""
+        """Test database connection"""
         try:
             # Temporarily update connection parameters (this is just for testing)
             conn = get_connection()
             if conn:
                 close_connection(conn)
-                messagebox.showinfo("Thành công", "Kết nối database thành công!")
+                messagebox.showinfo("Success", "Database connection successful!")
             else:
-                messagebox.showerror("Lỗi", "Không thể kết nối database!")
+                messagebox.showerror("Error", "Cannot connect to database!")
         except Exception as e:
-            messagebox.showerror("Lỗi", f"Lỗi kết nối: {str(e)}")
+            messagebox.showerror("Error", f"Connection error: {str(e)}")
 
     def save_db_settings(self):
-        """Lưu cài đặt database"""
+        """Save database settings"""
         try:
             # Create or update .env file
             env_content = f"""MYSQL_HOST={self.db_host_var.get()}
@@ -1464,16 +1464,16 @@ WINDY_API_KEY={self.api_key_var.get()}
             with open('.env', 'w') as f:
                 f.write(env_content)
             
-            messagebox.showinfo("Thành công", "Đã lưu cài đặt database!\nKhởi động lại ứng dụng để áp dụng.")
+            messagebox.showinfo("Success", "Database settings saved!\nRestart the application to apply changes.")
             
         except Exception as e:
-            messagebox.showerror("Lỗi", f"Lỗi lưu cài đặt: {str(e)}")
+            messagebox.showerror("Error", f"Settings save error: {str(e)}")
 
     def test_api_key(self):
         """Test API key"""
         api_key = self.api_key_var.get()
         if not api_key:
-            messagebox.showwarning("Cảnh báo", "Vui lòng nhập API key!")
+            messagebox.showwarning("Warning", "Please enter an API key!")
             return
         
         try:
@@ -1486,15 +1486,15 @@ WINDY_API_KEY={self.api_key_var.get()}
             response = requests.get(url, headers=headers, timeout=10)
             
             if response.status_code == 200:
-                messagebox.showinfo("Thành công", "API key hợp lệ!")
+                messagebox.showinfo("Success", "API key is valid!")
             else:
-                messagebox.showerror("Lỗi", f"API key không hợp lệ!\nStatus code: {response.status_code}")
+                messagebox.showerror("Error", f"Invalid API key!\nStatus code: {response.status_code}")
                 
         except Exception as e:
-            messagebox.showerror("Lỗi", f"Lỗi test API: {str(e)}")
+            messagebox.showerror("Error", f"API test error: {str(e)}")
 
     def save_api_key(self):
-        """Lưu API key"""
+        """Save API key"""
         try:
             # Read existing .env file
             env_content = ""
@@ -1521,48 +1521,48 @@ WINDY_API_KEY={self.api_key_var.get()}
             with open('.env', 'w') as f:
                 f.write('\n'.join(lines))
             
-            messagebox.showinfo("Thành công", "Đã lưu API key!")
+            messagebox.showinfo("Success", "API key saved!")
             
         except Exception as e:
-            messagebox.showerror("Lỗi", f"Lỗi lưu API key: {str(e)}")
+            messagebox.showerror("Error", f"API key save error: {str(e)}")
 
-    # # Help methods
+    # Help methods
     def show_help(self):
-        """Hiển thị hướng dẫn sử dụng"""
-        help_text = """HƯỚNG DẪN SỬ DỤNG HỆ THỐNG DỰ BÁO LŨ LỤT
+        """Show user guide"""
+        help_text = """FLOOD PREDICTION SYSTEM USER GUIDE
 
-1. THIẾT LẬP BAN ĐẦU:
-   - Vào File > Thiết lập Database để tạo database
-   - Vào Cài đặt để cấu hình database và API key
-   - Crawl dữ liệu thời tiết và mực nước sông
+1. INITIAL SETUP:
+   - Go to File > Setup Database to create the database
+   - Go to Settings to configure database and API key
+   - Crawl weather and river data
 
-2. HUẤN LUYỆN MÔ HÌNH:
-   - Vào tab Dashboard > Chạy tự động (khuyến nghị)
-   - Hoặc vào Mô hình > Huấn luyện mô hình
+2. TRAIN MODEL:
+   - Go to Dashboard > Run Auto (recommended)
+   - Or go to Model > Train Model
 
-3. DỰ BÁO:
-   - Vào tab Dự báo
-   - Nhập các thông số thời tiết và mực nước
-   - Nhấn "DỰ BÁO LŨ LỤT"
+3. PREDICTION:
+   - Go to Prediction tab
+   - Enter weather and water level parameters
+   - Click "PREDICT FLOOD"
 
-4. XEM DỮ LIỆU:
-   - Tab Dữ liệu: Xem dữ liệu đã thu thập
-   - Tab Báo cáo: Tạo biểu đồ và báo cáo chi tiết
+4. VIEW DATA:
+   - Data tab: View collected data
+   - Reports tab: Generate charts and detailed reports
 
-5. QUẢN LÝ:
-   - Dọn dẹp database định kỳ
-   - Xuất báo cáo khi cần thiết
-   - Theo dõi trạng thái hệ thống ở Dashboard
+5. MANAGEMENT:
+   - Periodically clean up database
+   - Export reports when needed
+   - Monitor system status on Dashboard
 
-LƯU Ý:
-- Hệ thống tự động chọn mô hình phù hợp
-- Mô hình nâng cao (3 cấp độ) khi có dữ liệu mực nước
-- Mô hình cơ bản (2 cấp độ) khi chỉ có dữ liệu thời tiết
+NOTES:
+- System automatically selects appropriate model
+- Advanced model (3 levels) with water level data
+- Basic model (2 levels) with only weather data
 """
         
         # Create help window
         help_window = tk.Toplevel(self.root)
-        help_window.title("Hướng dẫn sử dụng")
+        help_window.title("User Guide")
         help_window.geometry("700x500")
         
         text_widget = tk.Text(help_window, wrap=tk.WORD, padx=10, pady=10)
@@ -1576,35 +1576,35 @@ LƯU Ý:
         text_widget.config(state=tk.DISABLED)
 
     def show_about(self):
-        """Hiển thị thông tin về phần mềm"""
-        about_text = """HỆ THỐNG DỰ BÁO LŨ LỤT
+        """Show software information"""
+        about_text = """FLOOD PREDICTION SYSTEM
 
-Phiên bản: 1.0
-Ngày phát hành: 2024
+Version: 1.0
+Release Date: 2024
 
-Tính năng chính:
-- Dự báo lũ lụt đa cấp độ (2-3 cấp)
-- Tích hợp dữ liệu thời tiết và mực nước sông
-- Giao diện trực quan, dễ sử dụng
-- Báo cáo và biểu đồ chi tiết
-- Tự động hóa thu thập dữ liệu
+Main Features:
+- Multi-level flood prediction (2-3 levels)
+- Integration of weather and river data
+- User-friendly interface
+- Detailed reports and charts
+- Automated data collection
 
-Công nghệ sử dụng:
+Technologies Used:
 - Python 3.x
 - Tkinter (GUI)
 - Scikit-learn (Machine Learning)
 - MySQL (Database)
 - Matplotlib (Visualization)
 
-Phát triển bởi: Nhóm nghiên cứu AI
+Developed by: AI Research Team
 Email: support@floodprediction.com
 Website: www.floodprediction.com
 """
-        messagebox.showinfo("Về phần mềm", about_text)
+        messagebox.showinfo("About Software", about_text)
 
 
 def main():
-    """Hàm main để chạy ứng dụng"""
+    """Main function to run the application"""
     root = tk.Tk()
     app = FloodPredictionGUI(root)
     

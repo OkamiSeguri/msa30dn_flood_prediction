@@ -1,4 +1,3 @@
-# predictor.py
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
@@ -9,16 +8,16 @@ from datetime import datetime
 from setup_db import get_connection, close_connection
 
 def load_combined_data():
-    """Tải dữ liệu kết hợp từ 2 bảng: thời tiết + mực nước sông"""
+    """Load combined data from 2 tables: weather + river water level"""
     try:
         conn = get_connection()
         if not conn:
-            print("Không thể kết nối database")
+            print("Cannot connect to database")
             return None
             
         cursor = conn.cursor()
         
-        # Truy vấn kết hợp dữ liệu thời tiết và mực nước
+        # Query to combine weather and water level data
         query = """
         SELECT 
             r.location_name,
@@ -50,10 +49,10 @@ def load_combined_data():
              river_name, water_level, normal_level, alert1, alert2, alert3, 
              flow_rate, trend, river_time) = row
             
-            # Giải mã dữ liệu thời tiết
+            # Decode weather data
             weather_data = json.loads(precipitation_json)
             
-            # Chuyển đổi đơn vị nếu cần
+            # Convert units if necessary
             temp = weather_data.get('temperature', 0)
             if temp > 100:
                 temp = temp - 273.15
@@ -62,11 +61,11 @@ def load_combined_data():
             if pressure > 50000:
                 pressure = pressure / 100
             
-            # Tính các chỉ số bổ sung
+            # Calculate additional indices
             water_level_ratio = water_level / normal_level if normal_level > 0 else 1
             flow_rate_normal = flow_rate / 1000 if flow_rate else 0
             
-            # Xác định mức báo động hiện tại
+            # Determine current alert level
             alert_level_exceeded = 0
             if water_level >= alert3:
                 alert_level_exceeded = 3
@@ -106,15 +105,15 @@ def load_combined_data():
         return pd.DataFrame(combined_data)
         
     except Exception as e:
-        print(f"Lỗi khi tải dữ liệu: {e}")
+        print(f"Error loading data: {e}")
         return None
 
 def load_data_from_db():
-    """Tai du lieu tu database (chỉ thời tiết) - để tương thích ngược"""
+    """Load data from database (weather only) - for backward compatibility"""
     try:
         conn = get_connection()
         if not conn:
-            print("Khong the ket noi database")
+            print("Cannot connect to database")
             return None
             
         cursor = conn.cursor()
@@ -133,12 +132,12 @@ def load_data_from_db():
             location_name, lat, lon, precipitation_json, created_at = row
             precipitation_data = json.loads(precipitation_json)
             
-            # Chuyen nhiet do tu Kelvin sang Celsius neu can
+            # Convert temperature from Kelvin to Celsius if needed
             temp = precipitation_data.get('temperature', 0)
             if temp > 100:
                 temp = temp - 273.15
             
-            # Chuyen ap suat tu Pa sang hPa neu can
+            # Convert pressure from Pa to hPa if needed
             pressure = precipitation_data.get('pressure', 0)
             if pressure > 50000:
                 pressure = pressure / 100
@@ -162,13 +161,13 @@ def load_data_from_db():
         return pd.DataFrame(data)
         
     except Exception as e:
-        print(f"Loi khi tai du lieu: {e}")
+        print(f"Error loading data: {e}")
         return None
 
 def generate_advanced_training_data(real_df):
-    """Tạo dữ liệu training nâng cao với 3 cấp độ nguy cơ"""
+    """Generate advanced training data with 3 risk levels"""
     
-    # Lấy thông tin cơ bản
+    # Get basic information
     if len(real_df) > 0:
         avg_temp = real_df['temperature'].mean()
         avg_humidity = real_df['humidity'].mean()  
@@ -180,8 +179,8 @@ def generate_advanced_training_data(real_df):
     
     synthetic_data = []
     
-    # 1. LOW RISK - Rủi ro thấp (60 samples)
-    print("Tao du lieu: Nguy co THAP...")
+    # 1. LOW RISK - Low risk (60 samples)
+    print("Generating data: LOW risk...")
     for i in range(60):
         sample = {
             'location_name': f'Low_Risk_{i}',
@@ -209,8 +208,8 @@ def generate_advanced_training_data(real_df):
         }
         synthetic_data.append(sample)
     
-    # 2. MODERATE RISK - Rủi ro trung bình (50 samples)  
-    print("Tao du lieu: Nguy co TRUNG BINH...")
+    # 2. MODERATE RISK - Moderate risk (50 samples)  
+    print("Generating data: MODERATE risk...")
     for i in range(50):
         alert_exceeded = np.random.choice([0, 1, 2], p=[0.3, 0.5, 0.2])
         
@@ -240,8 +239,8 @@ def generate_advanced_training_data(real_df):
         }
         synthetic_data.append(sample)
     
-    # 3. HIGH RISK - Rủi ro cao (40 samples)
-    print("Tao du lieu: Nguy co CAO...")
+    # 3. HIGH RISK - High risk (40 samples)
+    print("Generating data: HIGH risk...")
     for i in range(40):
         alert_exceeded = np.random.choice([2, 3], p=[0.4, 0.6])
         
@@ -271,7 +270,7 @@ def generate_advanced_training_data(real_df):
         }
         synthetic_data.append(sample)
     
-    print(f"Da tao {len(synthetic_data)} mau du lieu training")
+    print(f"Generated {len(synthetic_data)} training data samples")
     
     synthetic_df = pd.DataFrame(synthetic_data)
     synthetic_df['created_at'] = pd.Timestamp.now()
@@ -279,16 +278,16 @@ def generate_advanced_training_data(real_df):
     return synthetic_df
 
 def create_flood_labels(df):
-    """Tạo nhãn nguy cơ lũ 3 cấp độ dựa trên quy tắc thực tế"""
+    """Create flood risk labels with 3 levels based on real-world rules"""
     
-    # Kiểm tra có dữ liệu mực nước không
+    # Check if water level data is available
     has_river_data = 'water_level' in df.columns and 'alert_level_exceeded' in df.columns
     
     if has_river_data:
-        # Sử dụng quy tắc nâng cao với dữ liệu mực nước
-        df['flood_risk_level'] = 0  # Mặc định LOW
+        # Use advanced rules with water level data
+        df['flood_risk_level'] = 0  # Default LOW
         
-        # Điều kiện HIGH RISK (2)
+        # Conditions for HIGH RISK (2)
         high_conditions = (
             (df['rainfall_1h'] > 20) |
             (df['rainfall_3h'] > 45) |
@@ -298,7 +297,7 @@ def create_flood_labels(df):
             ((df['humidity'] > 90) & (df['pressure'] < 1000) & (df['rainfall_1h'] > 10))
         )
         
-        # Điều kiện MODERATE RISK (1)  
+        # Conditions for MODERATE RISK (1)  
         moderate_conditions = (
             ((df['rainfall_1h'] > 10) & (df['rainfall_1h'] <= 20)) |
             ((df['rainfall_3h'] > 25) & (df['rainfall_3h'] <= 45)) |
@@ -309,47 +308,47 @@ def create_flood_labels(df):
             ((df['pressure'] < 1005) & (df['rainfall_1h'] > 8))
         )
         
-        # Áp dụng nhãn
+        # Apply labels
         df.loc[high_conditions, 'flood_risk_level'] = 2
         df.loc[moderate_conditions & (df['flood_risk_level'] != 2), 'flood_risk_level'] = 1
         
     else:
-        # Sử dụng quy tắc cơ bản chỉ với dữ liệu thời tiết
-        df['flood_risk'] = 0  # Giữ tương thích với code cũ
+        # Use basic rules with only weather data
+        df['flood_risk'] = 0  # Maintain backward compatibility
         
-        # Mưa > 15mm/h hoặc > 30mm/3h: nguy cơ cao
+        # Rainfall > 15mm/h or > 30mm/3h: high risk
         df.loc[(df['rainfall_1h'] > 15) | (df['rainfall_3h'] > 30), 'flood_risk'] = 1
         
-        # Độ ẩm cao + mưa vừa: nguy cơ trung bình
+        # High humidity + moderate rain: moderate risk
         df.loc[(df['humidity'] > 85) & (df['rainfall_1h'] > 8), 'flood_risk'] = 1
         
-        # Áp suất thấp + mưa: bão tình
+        # Low pressure + rain: storm condition
         df.loc[(df['pressure'] < 1005) & (df['rainfall_1h'] > 10), 'flood_risk'] = 1
         
-        # Gió mạnh + mưa: tăng nguy cơ
+        # Strong wind + rain: increased risk
         df.loc[(df['wind_speed'] > 20) & (df['rainfall_1h'] > 5), 'flood_risk'] = 1
         
-        # Nếu không có mưa thì vẫn có thể nguy cơ nếu điều kiện xấu
+        # If no rain, still risky under bad conditions
         df.loc[(df['humidity'] > 90) & (df['pressure'] < 1000), 'flood_risk'] = 1
         
-        # Chuyển về integer
+        # Convert to integer
         df['flood_risk'] = df['flood_risk'].astype(int)
     
     return df
 
 def train_model(df):
-    """Huấn luyện mô hình dự báo lũ lụt"""
+    """Train flood prediction model"""
     if len(df) < 10:
-        print(f"Khong du du lieu de huan luyen (can it nhat 10 records, hien co {len(df)})")
+        print(f"Not enough data to train (need at least 10 records, currently {len(df)})")
         return None, None
     
-    print(f"Su dung {len(df)} records de huan luyen")
+    print(f"Using {len(df)} records to train")
     
-    # Kiểm tra loại dữ liệu
+    # Check data type
     has_river_data = 'water_level' in df.columns and 'flood_risk_level' in df.columns
     
     if has_river_data:
-        # Mô hình nâng cao với dữ liệu mực nước
+        # Advanced model with water level data
         features = [
             'temperature', 'humidity', 'pressure', 'rainfall_1h', 'rainfall_3h', 'wind_speed',
             'water_level', 'water_level_ratio', 'flow_rate_normal', 'alert_level_exceeded',
@@ -358,12 +357,12 @@ def train_model(df):
         target = 'flood_risk_level'
         is_advanced = True
     else:
-        # Mô hình cơ bản chỉ với dữ liệu thời tiết
+        # Basic model with only weather data
         features = ['temperature', 'humidity', 'pressure', 'rainfall_1h', 'rainfall_3h', 'wind_speed']
         target = 'flood_risk'
         is_advanced = False
     
-    # Đảm bảo dữ liệu số
+    # Ensure numerical data
     for feature in features:
         if feature in df.columns:
             df[feature] = pd.to_numeric(df[feature], errors='coerce').fillna(0)
@@ -371,18 +370,18 @@ def train_model(df):
     X = df[features]
     y = df[target].astype(int)
     
-    # Thống kê phân bố
+    # Statistics distribution
     if is_advanced:
         risk_counts = y.value_counts().sort_index()
-        print(f"Phan bo nguy co (3 cap do):")
+        print(f"Risk distribution (3 levels):")
         print(f"  LOW (0): {risk_counts.get(0, 0)} samples")
         print(f"  MODERATE (1): {risk_counts.get(1, 0)} samples") 
         print(f"  HIGH (2): {risk_counts.get(2, 0)} samples")
     else:
-        print(f"Phan bo nhan: No flood={sum(y==0)}, Flood={sum(y==1)}")
-        print(f"Ti le flood: {sum(y==1)/len(y)*100:.1f}%")
+        print(f"Label distribution: No flood={sum(y==0)}, Flood={sum(y==1)}")
+        print(f"Flood ratio: {sum(y==1)/len(y)*100:.1f}%")
     
-    # Chia dữ liệu
+    # Split data
     if len(df) > 80 and len(y.unique()) > 1:
         try:
             X_train, X_test, y_train, y_test = train_test_split(
@@ -396,7 +395,7 @@ def train_model(df):
         X_train, X_test = X, X
         y_train, y_test = y, y
     
-    # Huấn luyện mô hình
+    # Train model
     if is_advanced:
         model = RandomForestClassifier(
             n_estimators=150,
@@ -419,19 +418,19 @@ def train_model(df):
     try:
         model.fit(X_train, y_train)
         
-        # Đánh giá
+        # Evaluate
         y_pred = model.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
         
-        print(f"Do chinh xac mo hinh: {accuracy:.3f}")
+        print(f"Model accuracy: {accuracy:.3f}")
         
-        # Báo cáo chi tiết
+        # Detailed report
         if is_advanced:
             target_names = ['LOW', 'MODERATE', 'HIGH']
-            print("\nBao cao chi tiet (3 cap do):")
+            print("\nDetailed report (3 levels):")
         else:
             target_names = ['No Flood', 'Flood']
-            print("\nBao cao chi tiet:")
+            print("\nDetailed report:")
             
         print(classification_report(y_test, y_pred, target_names=target_names))
         
@@ -441,31 +440,31 @@ def train_model(df):
             'importance': model.feature_importances_
         }).sort_values('importance', ascending=False)
         
-        print("\nMuc do quan trong cua cac yeu to:")
+        print("\nFeature importance levels:")
         for _, row in feature_importance.head(8).iterrows():
             print(f"  {row['feature']}: {row['importance']:.3f}")
         
         return model, features, is_advanced
         
     except Exception as e:
-        print(f"Loi khi huan luyen mo hinh: {e}")
+        print(f"Error training model: {e}")
         return None, None, False
 
 def predict_flood_risk(model, features, weather_data, is_advanced=False):
-    """Dự báo nguy cơ lũ lụt"""
+    """Predict flood risk"""
     if model is None:
         return None
     
     try:
-        # Tạo DataFrame
+        # Create DataFrame
         input_data = pd.DataFrame([weather_data])
         
-        # Dự báo
+        # Predict
         prediction = model.predict(input_data[features])[0]
         probabilities = model.predict_proba(input_data[features])[0]
         
         if is_advanced:
-            # Kết quả 3 cấp độ
+            # 3-level result
             risk_labels = ['LOW', 'MODERATE', 'HIGH']
             risk_colors = ['green', 'orange', 'red']
             
@@ -477,14 +476,14 @@ def predict_flood_risk(model, features, weather_data, is_advanced=False):
                 'color': risk_colors[prediction]
             }
             
-            # Xử lý probabilities theo số class thực tế
+            # Process probabilities according to actual classes
             for i, label in enumerate(risk_labels):
                 if i < len(probabilities):
                     result['probabilities'][label] = float(probabilities[i])
                 else:
                     result['probabilities'][label] = 0.0
         else:
-            # Kết quả 2 cấp độ (tương thích ngược)
+            # 2-level result (backward compatibility)
             result = {
                 'flood_risk': int(prediction),
                 'probability_no_flood': float(probabilities[0]),
@@ -495,29 +494,29 @@ def predict_flood_risk(model, features, weather_data, is_advanced=False):
         return result
         
     except Exception as e:
-        print(f"Loi khi du bao: {e}")
+        print(f"Error predicting: {e}")
         return None
 
 def get_risk_level_text(probability_or_level, is_advanced=False):
-    """Chuyển đổi kết quả thành text mô tả"""
+    """Convert result to descriptive text"""
     if is_advanced:
-        # Đã có sẵn text từ model nâng cao
+        # Already has text from advanced model
         return probability_or_level, "auto"
     else:
-        # Chuyển đổi xác suất thành mức độ (model cũ)
+        # Convert probability to level (old model)
         if probability_or_level < 0.2:
-            return "AN TOAN", "green"
+            return "SAFE", "green"
         elif probability_or_level < 0.4:
-            return "THAP", "yellow"
+            return "LOW", "yellow"
         elif probability_or_level < 0.6:
-            return "TRUNG BINH", "orange"
+            return "MODERATE", "orange"
         elif probability_or_level < 0.8:
-            return "CAO", "red"
+            return "HIGH", "red"
         else:
-            return "RAT CAO", "darkred"
+            return "VERY HIGH", "darkred"
 
 def save_prediction_result(location_name, prediction_data, input_data, is_advanced=False):
-    """Lưu kết quả dự báo vào database"""
+    """Save prediction result to database"""
     try:
         conn = get_connection()
         if not conn:
@@ -525,45 +524,45 @@ def save_prediction_result(location_name, prediction_data, input_data, is_advanc
             
         cursor = conn.cursor()
         
-        # Tạo khuyến nghị dựa trên kết quả
+        # Generate recommendations based on result
         if is_advanced:
             risk_level = prediction_data['risk_level']
             if risk_level == 'HIGH':
                 recommendations = [
-                    "Sơ tán dân cư vùng nguy hiểm",
-                    "Chuẩn bị vật tư cứu trợ khẩn cấp", 
-                    "Theo dõi mực nước liên tục",
-                    "Kích hoạt đội ứng phó khẩn cấp"
+                    "Evacuate residents in danger zones",
+                    "Prepare emergency relief supplies", 
+                    "Continuously monitor water levels",
+                    "Activate emergency response team"
                 ]
             elif risk_level == 'MODERATE':
                 recommendations = [
-                    "Theo dõi chặt chẽ diễn biến thời tiết",
-                    "Chuẩn bị sẵn sàng biện pháp ứng phó",
-                    "Thông báo người dân ở vùng trũng",
-                    "Kiểm tra hệ thống thoát nước"
+                    "Closely monitor weather developments",
+                    "Prepare response measures",
+                    "Notify residents in low-lying areas",
+                    "Check drainage systems"
                 ]
             else:
                 recommendations = [
-                    "Tiếp tục theo dõi thông tin thời tiết",
-                    "Duy trì hoạt động bình thường"
+                    "Continue monitoring weather updates",
+                    "Maintain normal operations"
                 ]
             
             probability = prediction_data['probabilities'][risk_level]
         else:
-            # Model cũ
+            # Old model
             if prediction_data['probability_flood'] > 0.6:
                 risk_level = 'HIGH'
-                recommendations = ["Cảnh báo nguy cơ lũ cao", "Chuẩn bị biện pháp ứng phó"]
+                recommendations = ["High flood risk warning", "Prepare response measures"]
             elif prediction_data['probability_flood'] > 0.4:
                 risk_level = 'MODERATE'  
-                recommendations = ["Theo dõi tình hình", "Kiểm tra hệ thống thoát nước"]
+                recommendations = ["Monitor situation", "Check drainage systems"]
             else:
                 risk_level = 'LOW'
-                recommendations = ["Tiếp tục theo dõi"]
+                recommendations = ["Continue monitoring"]
             
             probability = prediction_data['probability_flood']
         
-        # Kiểm tra bảng có tồn tại không
+        # Check if table exists
         cursor.execute("SHOW TABLES LIKE 'flood_predictions'")
         table_exists = cursor.fetchone() is not None
         
@@ -599,49 +598,49 @@ def save_prediction_result(location_name, prediction_data, input_data, is_advanc
         return True
         
     except Exception as e:
-        print(f"Loi khi luu ket qua du bao: {e}")
+        print(f"Error saving prediction result: {e}")
         return False
 
 def main():
-    print("=== HE THONG DU BAO LU LUT TICH HOP ===")
-    print("Tu dong phat hien loai du lieu va chon mo hinh phu hop")
+    print("=== INTEGRATED FLOOD PREDICTION SYSTEM ===")
+    print("Automatically detects data type and selects appropriate model")
     
-    # Thử tải dữ liệu kết hợp trước
-    print("Kiem tra du lieu ket hop (thoi tiet + muc nuoc song)...")
+    # Try loading combined data first
+    print("Checking combined data (weather + river water level)...")
     combined_df = load_combined_data()
     
     if combined_df is not None and len(combined_df) > 0:
-        print(f"Tim thay {len(combined_df)} records du lieu ket hop")
-        print("Su dung mo hinh nang cao voi 3 cap do nguy co")
+        print(f"Found {len(combined_df)} combined data records")
+        print("Using advanced model with 3 risk levels")
         
         real_df = combined_df
         use_advanced = True
         
-        # Áp dụng nhãn cho dữ liệu thực tế
+        # Apply labels to real data
         real_df = create_flood_labels(real_df)
         
-        # Tạo dữ liệu training nâng cao
+        # Generate advanced training data
         synthetic_df = generate_advanced_training_data(real_df)
         
     else:
-        print("Khong co du lieu ket hop, su dung du lieu thoi tiet don le")
-        print("Su dung mo hinh co ban voi 2 cap do")
+        print("No combined data, using standalone weather data")
+        print("Using basic model with 2 risk levels")
         
-        # Tải dữ liệu thời tiết cơ bản
+        # Load basic weather data
         real_df = load_data_from_db()
         if real_df is None:
             real_df = pd.DataFrame()
         
         use_advanced = False
         
-        # Áp dụng nhãn cơ bản
+        # Apply basic labels
         if len(real_df) > 0:
             real_df = create_flood_labels(real_df)
         
-        # Tạo dữ liệu training cơ bản (từ code cũ)
+        # Generate basic training data (from old code)
         synthetic_data = []
         
-        # Tạo dữ liệu mưa to gây lũ
+        # Generate heavy rain causing flood data
         for i in range(30):
             sample = {
                 'location_name': f'Heavy_Rain_{i}',
@@ -657,7 +656,7 @@ def main():
             }
             synthetic_data.append(sample)
         
-        # Tạo dữ liệu không lũ
+        # Generate no-flood data
         for i in range(40):
             sample = {
                 'location_name': f'No_Flood_{i}',
@@ -676,24 +675,24 @@ def main():
         synthetic_df = pd.DataFrame(synthetic_data)
         synthetic_df['created_at'] = pd.Timestamp.now()
     
-    # Kết hợp dữ liệu
+    # Combine data
     if len(real_df) > 0:
         df = pd.concat([real_df, synthetic_df], ignore_index=True)
-        print(f"Ket hop: {len(real_df)} thuc te + {len(synthetic_df)} gia = {len(df)} total")
+        print(f"Combined: {len(real_df)} real + {len(synthetic_df)} synthetic = {len(df)} total")
     else:
         df = synthetic_df
-        print(f"Chi su dung du lieu gia: {len(df)} samples")
+        print(f"Using only synthetic data: {len(df)} samples")
     
-    # Hiển thị thông tin
-    print(f"\nThong tin du lieu:")
-    print(f"  - Tong so samples: {len(df)}")
-    print(f"  - Luong mua TB: {df['rainfall_1h'].mean():.2f}mm/h")
-    print(f"  - Do am TB: {df['humidity'].mean():.1f}%")
-    print(f"  - Nhiet do TB: {df['temperature'].mean():.1f}°C")
+    # Display information
+    print(f"\nData information:")
+    print(f"  - Total samples: {len(df)}")
+    print(f"  - Average rainfall: {df['rainfall_1h'].mean():.2f}mm/h")
+    print(f"  - Average humidity: {df['humidity'].mean():.1f}%")
+    print(f"  - Average temperature: {df['temperature'].mean():.1f}°C")
     if 'water_level' in df.columns:
-        print(f"  - Muc nuoc TB: {df['water_level'].mean():.1f}cm")
+        print(f"  - Average water level: {df['water_level'].mean():.1f}cm")
     
-    # Huấn luyện mô hình
+    # Train model
     result = train_model(df)
     if len(result) == 3:
         model, features, is_advanced = result
@@ -702,27 +701,27 @@ def main():
         is_advanced = use_advanced
     
     if model is not None:
-        print(f"\n=== TEST DU BAO ({'NANG CAO' if is_advanced else 'CO BAN'}) ===")
+        print(f"\n=== TEST PREDICTION ({'ADVANCED' if is_advanced else 'BASIC'}) ===")
         
         if is_advanced:
-            # Test scenarios cho mô hình nâng cao
+            # Test scenarios for advanced model
             test_scenarios = [
                 {
-                    'name': 'Troi dep - Muc nuoc binh thuong',
+                    'name': 'Clear weather - Normal water level',
                     'temperature': 28, 'humidity': 60, 'pressure': 1015,
                     'rainfall_1h': 0, 'rainfall_3h': 0, 'wind_speed': 8,
                     'water_level': 120, 'water_level_ratio': 0.8, 'flow_rate_normal': 0.4,
                     'alert_level_exceeded': 0, 'trend_rising': 0, 'trend_falling': 0
                 },
                 {
-                    'name': 'Mua vua - Muc nuoc tang',
+                    'name': 'Moderate rain - Rising water level',
                     'temperature': 25, 'humidity': 80, 'pressure': 1008,
                     'rainfall_1h': 12, 'rainfall_3h': 28, 'wind_speed': 15,
                     'water_level': 190, 'water_level_ratio': 1.1, 'flow_rate_normal': 0.8,
                     'alert_level_exceeded': 1, 'trend_rising': 1, 'trend_falling': 0
                 },
                 {
-                    'name': 'Mua to - Vuot bao dong cap 2',
+                    'name': 'Heavy rain - Exceeded alert level 2',
                     'temperature': 23, 'humidity': 92, 'pressure': 1002,
                     'rainfall_1h': 25, 'rainfall_3h': 55, 'wind_speed': 25,
                     'water_level': 240, 'water_level_ratio': 1.6, 'flow_rate_normal': 1.5,
@@ -730,26 +729,26 @@ def main():
                 }
             ]
         else:
-            # Test scenarios cho mô hình cơ bản  
+            # Test scenarios for basic model  
             test_scenarios = [
                 {
-                    'name': 'Troi nang dep',
+                    'name': 'Sunny weather',
                     'temperature': 29.0, 'humidity': 65, 'pressure': 1015,
                     'rainfall_1h': 0, 'rainfall_3h': 0, 'wind_speed': 8
                 },
                 {
-                    'name': 'Mua nhe',
+                    'name': 'Light rain',
                     'temperature': 27.0, 'humidity': 75, 'pressure': 1012,
                     'rainfall_1h': 4, 'rainfall_3h': 10, 'wind_speed': 12
                 },
                 {
-                    'name': 'Mua to',
+                    'name': 'Heavy rain',
                     'temperature': 24.0, 'humidity': 92, 'pressure': 1004,
                     'rainfall_1h': 22, 'rainfall_3h': 50, 'wind_speed': 28
                 }
             ]
         
-        # Chạy test
+        # Run tests
         for scenario in test_scenarios:
             name = scenario.pop('name')
             result = predict_flood_risk(model, features, scenario, is_advanced)
@@ -758,36 +757,36 @@ def main():
                 if is_advanced:
                     print(f"\n{name}:")
                     if 'water_level' in scenario:
-                        print(f"  Du lieu: Mua {scenario['rainfall_1h']}mm/h, Muc nuoc {scenario['water_level']}cm")
+                        print(f"  Data: Rainfall {scenario['rainfall_1h']}mm/h, Water level {scenario['water_level']}cm")
                     else:
-                        print(f"  Du lieu: Mua {scenario['rainfall_1h']}mm/h")
-                    print(f"  Ket qua: NGUY CO {result['risk_level']}")
-                    print(f"  Xac suat cac cap do:")
+                        print(f"  Data: Rainfall {scenario['rainfall_1h']}mm/h")
+                    print(f"  Result: RISK {result['risk_level']}")
+                    print(f"  Probabilities per level:")
                     for level, prob in result['probabilities'].items():
                         print(f"    {level}: {prob:.1%}")
-                    print(f"  Do tin cay: {result['confidence']:.1%}")
+                    print(f"  Confidence: {result['confidence']:.1%}")
                     
-                    # Cảnh báo
+                    # Warning
                     if result['risk_level'] == 'HIGH':
-                        print(f"  CANH BAO: Nguy co lu cao! Can chuan bi bien phap phong chong")
+                        print(f"  WARNING: High flood risk! Prepare preventive measures")
                     elif result['risk_level'] == 'MODERATE':
-                        print(f"  Theo doi: Can theo doi tinh hinh thoi tiet")
+                        print(f"  Monitor: Monitor weather conditions")
                         
                 else:
                     risk_text, color = get_risk_level_text(result['probability_flood'], is_advanced)
                     print(f"\n{name}:")
-                    print(f"  Du lieu: Mua {scenario['rainfall_1h']:.1f}mm/h")
-                    print(f"  Ket qua: NGUY CO {risk_text}")
-                    print(f"  Xac suat lu: {result['probability_flood']:.1%}")
-                    print(f"  Do tin cay: {result['confidence']:.1%}")
+                    print(f"  Data: Rainfall {scenario['rainfall_1h']:.1f}mm/h")
+                    print(f"  Result: RISK {risk_text}")
+                    print(f"  Flood probability: {result['probability_flood']:.1%}")
+                    print(f"  Confidence: {result['confidence']:.1%}")
                     
-                    # Cảnh báo
+                    # Warning
                     if result['probability_flood'] > 0.6:
-                        print(f"  CANH BAO: Nguy co lu cao! Can chuan bi bien phap phong chong")
+                        print(f"  WARNING: High flood risk! Prepare preventive measures")
                     elif result['probability_flood'] > 0.4:
-                        print(f"  Theo doi: Can theo doi tinh hinh thoi tiet")
+                        print(f"  Monitor: Monitor weather conditions")
     
-    print(f"\nHoan thanh he thong du bao ({'nang cao' if is_advanced else 'co ban'})")
+    print(f"\nCompleted prediction system ({'advanced' if is_advanced else 'basic'})")
 
 if __name__ == "__main__":
     main()

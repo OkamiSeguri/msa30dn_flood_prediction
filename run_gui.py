@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Khởi động GUI cho Hệ thống Dự báo Lũ lụt
+Launch GUI for Flood Prediction System
 """
 
 import sys
@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 def check_dependencies():
-    """Kiểm tra các thư viện cần thiết"""
+    """Check required libraries"""
     required_packages = [
         'pandas', 'numpy', 'scikit-learn', 
         'matplotlib', 'mysql-connector-python'
@@ -27,23 +27,23 @@ def check_dependencies():
         root = tk.Tk()
         root.withdraw()
         messagebox.showerror(
-            "Thiếu thư viện",
-            f"Các thư viện sau chưa được cài đặt:\n{', '.join(missing_packages)}\n\n"
-            f"Vui lòng chạy lệnh:\npip install {' '.join(missing_packages)}"
+            "Missing Libraries",
+            f"The following libraries are not installed:\n{', '.join(missing_packages)}\n\n"
+            f"Please run the command:\npip install {' '.join(missing_packages)}"
         )
         return False
     
     return True
 
 def main():
-    """Khởi động ứng dụng"""
-    print("Đang khởi động Hệ thống Dự báo Lũ lụt...")
+    """Launch the application"""
+    print("Starting Flood Prediction System...")
     
-    # Kiểm tra dependencies
+    # Check dependencies
     if not check_dependencies():
         return
     
-    # Import và chạy GUI
+    # Import and run GUI
     try:
         from flood_prediction_gui import main as run_gui
         run_gui()
@@ -51,14 +51,14 @@ def main():
         root = tk.Tk()
         root.withdraw()
         messagebox.showerror(
-            "Lỗi import",
-            f"Không thể import module GUI:\n{str(e)}\n\n"
-            "Vui lòng kiểm tra file flood_prediction_gui.py"
+            "Import Error",
+            f"Unable to import GUI module:\n{str(e)}\n\n"
+            "Please check the flood_prediction_gui.py file"
         )
     except Exception as e:
         root = tk.Tk()
         root.withdraw()
-        messagebox.showerror("Lỗi", f"Lỗi khởi động ứng dụng:\n{str(e)}")
+        messagebox.showerror("Error", f"Application startup error:\n{str(e)}")
 
 if __name__ == "__main__":
     main()
