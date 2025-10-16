@@ -1,0 +1,8 @@
+requests
+python-dotenv
+mysql-connector-python
+pandas
+matplotlib
+scikit-learn
+numpy
+ttkbootstrap
