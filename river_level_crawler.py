@@ -6,22 +6,22 @@ import math
 from setup_db import get_connection, close_connection
 import time
 
-# Information about major rivers and measurement stations in Vietnam
+# Updated RIVER_STATIONS with more realistic levels and lower volatility
 RIVER_STATIONS = [
     {
         "location_name": "Hanoi",
         "river_name": "Red River",
         "latitude": 21.0285,
         "longitude": 105.8542,
-        "normal_level": 300,  # cm
-        "alert_level_1": 450,
-        "alert_level_2": 550,
-        "alert_level_3": 650,
-        "base_flow_rate": 1200,  # m3/s
-        "seasonal_factor": 1.2,  # Seasonal factor (higher during rainy season)
-        "tidal_effect": False,   # Not affected by tides
-        "dam_controlled": True,  # Dam-regulated
-        "volatility": 0.15       # Volatility (15%)
+        "normal_level": 250,  # Adjusted to realistic level
+        "alert_level_1": 350,
+        "alert_level_2": 450,
+        "alert_level_3": 550,
+        "base_flow_rate": 1200,
+        "seasonal_factor": 1.2,
+        "tidal_effect": False,
+        "dam_controlled": True,
+        "volatility": 0.08  # Reduced volatility
     },
     {
         "location_name": "Ho_Chi_Minh_City",
@@ -34,9 +34,9 @@ RIVER_STATIONS = [
         "alert_level_3": 270,
         "base_flow_rate": 800,
         "seasonal_factor": 1.4,
-        "tidal_effect": True,    # Affected by tides
+        "tidal_effect": True,
         "dam_controlled": False,
-        "volatility": 0.25
+        "volatility": 0.12  # Reduced
     },
     {
         "location_name": "Da_Nang",
@@ -51,7 +51,7 @@ RIVER_STATIONS = [
         "seasonal_factor": 1.3,
         "tidal_effect": True,
         "dam_controlled": True,
-        "volatility": 0.20
+        "volatility": 0.10  # Reduced
     },
     {
         "location_name": "Hue",
@@ -66,7 +66,7 @@ RIVER_STATIONS = [
         "seasonal_factor": 1.1,
         "tidal_effect": False,
         "dam_controlled": False,
-        "volatility": 0.18
+        "volatility": 0.09  # Reduced
     },
     {
         "location_name": "Can_Tho",
@@ -81,7 +81,7 @@ RIVER_STATIONS = [
         "seasonal_factor": 1.5,
         "tidal_effect": True,
         "dam_controlled": False,
-        "volatility": 0.30
+        "volatility": 0.15  # Slightly reduced
     },
     {
         "location_name": "Hai_Phong",
@@ -96,7 +96,7 @@ RIVER_STATIONS = [
         "seasonal_factor": 1.1,
         "tidal_effect": True,
         "dam_controlled": True,
-        "volatility": 0.22
+        "volatility": 0.11  # Reduced
     },
     {
         "location_name": "Nha_Trang",
@@ -111,9 +111,121 @@ RIVER_STATIONS = [
         "seasonal_factor": 1.2,
         "tidal_effect": False,
         "dam_controlled": False,
-        "volatility": 0.28
+        "volatility": 0.14  # Reduced
     }
 ]
+
+def check_and_cleanup_database():
+    """Check and clean up database if needed"""
+    try:
+        conn = get_connection()
+        if not conn:
+            return False
+            
+        cursor = conn.cursor()
+        
+        # Count current records
+        cursor.execute("SELECT COUNT(*) FROM river_level_data")
+        total_count = cursor.fetchone()[0]
+        
+        MAX_RECORDS = 2000  # Maximum limit
+        
+        if total_count > MAX_RECORDS:
+            print(f"Database has {total_count} records, starting cleanup...")
+            
+            # Delete old records but keep at least 3 newest per location per day
+            cursor.execute("""
+                DELETE rd1 FROM river_level_data rd1
+                WHERE rd1.id NOT IN (
+                    SELECT * FROM (
+                        SELECT rd2.id 
+                        FROM river_level_data rd2
+                        WHERE rd2.location_name = rd1.location_name 
+                        AND rd2.river_name = rd1.river_name
+                        AND DATE(rd2.created_at) = DATE(rd1.created_at)
+                        ORDER BY rd2.created_at DESC 
+                        LIMIT 3
+                    ) AS temp
+                )
+                AND rd1.created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+            """)
+            
+            conn.commit()
+            print(f"Cleaned up old records while keeping 3 newest per location per day")
+        
+        cursor.close()
+        close_connection(conn)
+        return True
+        
+    except Exception as e:
+        print(f"Error cleaning database: {e}")
+        return False
+
+def check_daily_record_count(location_name, river_name):
+    """Check how many records exist for this location and river today"""
+    try:
+        conn = get_connection()
+        if not conn:
+            return 0
+            
+        cursor = conn.cursor()
+        
+        # Count records for today
+        cursor.execute("""
+            SELECT COUNT(*) FROM river_level_data 
+            WHERE location_name = %s AND river_name = %s
+            AND DATE(created_at) = CURDATE()
+        """, (location_name, river_name))
+        
+        count = cursor.fetchone()[0]
+        
+        cursor.close()
+        close_connection(conn)
+        
+        return count
+        
+    except Exception as e:
+        print(f"Error checking daily record count: {e}")
+        return 0
+
+def cleanup_excess_daily_records(location_name, river_name):
+    """Keep only 3 newest records per location per day"""
+    try:
+        conn = get_connection()
+        if not conn:
+            return False
+            
+        cursor = conn.cursor()
+        
+        # Delete all but the 3 newest records for today
+        cursor.execute("""
+            DELETE FROM river_level_data 
+            WHERE location_name = %s AND river_name = %s
+            AND DATE(created_at) = CURDATE()
+            AND id NOT IN (
+                SELECT * FROM (
+                    SELECT id FROM river_level_data 
+                    WHERE location_name = %s AND river_name = %s
+                    AND DATE(created_at) = CURDATE()
+                    ORDER BY created_at DESC 
+                    LIMIT 3
+                ) AS temp
+            )
+        """, (location_name, river_name, location_name, river_name))
+        
+        deleted_count = cursor.rowcount
+        conn.commit()
+        
+        if deleted_count > 0:
+            print(f"Cleaned up {deleted_count} excess records for {location_name} - {river_name}")
+        
+        cursor.close()
+        close_connection(conn)
+        return True
+        
+    except Exception as e:
+        print(f"Error cleaning up excess records: {e}")
+        return False
 
 def get_seasonal_factor():
     """Calculate seasonal factor (rainy/dry season)"""
@@ -180,9 +292,8 @@ def get_tidal_effect(station):
     return max(0.8, min(1.2, tidal_effect))
 
 def get_weather_impact_advanced(weather_data, station):
-    """Calculate detailed weather impact"""
+    """Calculate detailed weather impact with reduced impact"""
     if not weather_data:
-        # Generate random but realistic weather data
         season_factor = get_seasonal_factor()
         
         if season_factor > 1.2:  # Rainy season
@@ -204,51 +315,47 @@ def get_weather_impact_advanced(weather_data, station):
         pressure = weather_data.get('pressure', 1013)
         wind_speed = weather_data.get('wind_speed', 10)
     
-    # Calculate complex impact
+    # Reduced rain impact coefficients
     rain_impact = 0
     
-    # Instant rain impact (1h)
     if rainfall_1h > 0:
-        # Heavy rain has nonlinear impact
         if rainfall_1h > 20:
-            rain_impact += rainfall_1h * 4.0  # Heavy rain has strong impact
+            rain_impact += rainfall_1h * 2.0  # Reduced from 4.0
         elif rainfall_1h > 10:
-            rain_impact += rainfall_1h * 3.0
+            rain_impact += rainfall_1h * 1.5  # Reduced from 3.0
         elif rainfall_1h > 5:
-            rain_impact += rainfall_1h * 2.5
+            rain_impact += rainfall_1h * 1.2  # Reduced from 2.5
         else:
-            rain_impact += rainfall_1h * 2.0
+            rain_impact += rainfall_1h * 1.0  # Reduced from 2.0
     
-    # Accumulated rain impact (3h)
     if rainfall_3h > rainfall_1h:
         accumulated_rain = rainfall_3h - rainfall_1h
-        rain_impact += accumulated_rain * 1.5
+        rain_impact += accumulated_rain * 0.7  # Reduced from 1.5
     
-    # Adjust by soil moisture
+    # Reduced humidity and pressure impacts
     if humidity > 90:
-        rain_impact *= 1.4  # Fully saturated soil
+        rain_impact *= 1.2  # Reduced from 1.4
     elif humidity > 80:
-        rain_impact *= 1.2  # Wet soil
+        rain_impact *= 1.1  # Reduced from 1.2
     elif humidity < 50:
-        rain_impact *= 0.6  # Dry soil, absorbs more water
+        rain_impact *= 0.8  # Reduced from 0.6
     
-    # Pressure impact (storms, tropical depressions)
     if pressure < 990:
-        rain_impact *= 1.8  # Strong storm
+        rain_impact *= 1.4  # Reduced from 1.8
     elif pressure < 1000:
-        rain_impact *= 1.5  # Tropical depression
+        rain_impact *= 1.2  # Reduced from 1.5
     elif pressure < 1005:
-        rain_impact *= 1.2  # Bad weather
+        rain_impact *= 1.1  # Reduced from 1.2
     elif pressure > 1020:
-        rain_impact *= 0.7  # Good weather, less rain
+        rain_impact *= 0.9  # Reduced from 0.7
     
-    # Wind impact (evaporation and drainage)
+    # Reduced wind impact
     if wind_speed > 40:
-        rain_impact *= 0.8  # Very strong wind, fast drainage
+        rain_impact *= 0.95  # Reduced from 0.8
     elif wind_speed > 25:
-        rain_impact *= 0.9  # Strong wind
+        rain_impact *= 0.97  # Reduced from 0.9
     elif wind_speed < 5:
-        rain_impact *= 1.1  # Weak wind, water stagnation
+        rain_impact *= 1.05  # Reduced from 1.1
     
     return rain_impact
 
@@ -298,26 +405,29 @@ def get_geological_factors(station):
     return impact
 
 def calculate_natural_flow_change(prev_level, station):
-    """Calculate natural flow change"""
-    # Natural drainage speed depends on current water level
-    level_ratio = prev_level / station['normal_level']
+    """Calculate natural flow change with reduced variation"""
+    prev_level = float(prev_level)
+    normal_level = float(station['normal_level'])
+    volatility = float(station['volatility'])
     
-    # Higher water level drains faster
+    level_ratio = prev_level / normal_level
+    
+    # Reduced drainage speeds for stability
     if level_ratio > 2.0:
-        natural_decline = np.random.uniform(15, 25)  # Very fast drainage
+        natural_decline = np.random.uniform(5, 10)  # Reduced from 15-25
     elif level_ratio > 1.5:
-        natural_decline = np.random.uniform(10, 18)  # Fast drainage
+        natural_decline = np.random.uniform(4, 8)   # Reduced from 10-18
     elif level_ratio > 1.2:
-        natural_decline = np.random.uniform(6, 12)   # Normal drainage
+        natural_decline = np.random.uniform(2, 6)   # Reduced from 6-12
     elif level_ratio > 0.8:
-        natural_decline = np.random.uniform(3, 8)    # Slow drainage
+        natural_decline = np.random.uniform(1, 4)   # Reduced from 3-8
     else:
-        natural_decline = np.random.uniform(1, 4)    # Very slow drainage
+        natural_decline = np.random.uniform(0.5, 2) # Reduced from 1-4
     
-    # Add random factor based on river characteristics
-    volatility_factor = 1 + np.random.uniform(-station['volatility'], station['volatility'])
+    # Reduced volatility factor
+    volatility_factor = 1 + np.random.uniform(-volatility/2, volatility/2)  # Halved range
     
-    return natural_decline * volatility_factor
+    return float(natural_decline * volatility_factor)
 
 def get_latest_weather_data(location_name):
     """Retrieve the latest weather data from the database"""
@@ -328,8 +438,10 @@ def get_latest_weather_data(location_name):
             
         cursor = conn.cursor()
         
+        # SỬA QUERY ĐỂ LẤY THÊM THÔNG TIN CẦN THIẾT
         query = """
-        SELECT precipitation FROM rainfall_data 
+        SELECT temperature, humidity, pressure, wind_speed, precipitation 
+        FROM rainfall_data 
         WHERE location_name = %s 
         ORDER BY created_at DESC 
         LIMIT 1
@@ -342,7 +454,40 @@ def get_latest_weather_data(location_name):
         close_connection(conn)
         
         if result:
-            return json.loads(result[0])
+            # CHUYỂN ĐỔI TẤT CẢ DECIMAL THÀNH FLOAT
+            temperature = float(result[0]) if result[0] is not None else 26.0
+            humidity = float(result[1]) if result[1] is not None else 70.0
+            pressure = float(result[2]) if result[2] is not None else 1013.0
+            wind_speed = float(result[3]) if result[3] is not None else 10.0
+            
+            # XỬ LÝ PRECIPITATION (có thể là JSON string)
+            precipitation_data = result[4]
+            if precipitation_data:
+                try:
+                    if isinstance(precipitation_data, str):
+                        precip_json = json.loads(precipitation_data)
+                    else:
+                        precip_json = precipitation_data
+                    
+                    rainfall_1h = float(precip_json.get('rainfall_1h', 0)) if precip_json.get('rainfall_1h') else 0
+                    rainfall_3h = float(precip_json.get('rainfall_3h', 0)) if precip_json.get('rainfall_3h') else 0
+                    
+                except (json.JSONDecodeError, TypeError, AttributeError):
+                    rainfall_1h = 0
+                    rainfall_3h = 0
+            else:
+                rainfall_1h = 0
+                rainfall_3h = 0
+            
+            return {
+                'temperature': temperature,
+                'humidity': humidity,
+                'pressure': pressure,
+                'wind_speed': wind_speed,
+                'rainfall_1h': rainfall_1h,
+                'rainfall_3h': rainfall_3h
+            }
+        
         return None
         
     except Exception as e:
@@ -371,123 +516,120 @@ def get_previous_river_level(location_name, river_name):
         cursor.close()
         close_connection(conn)
         
-        return result
+        if result:
+            # CHUYỂN ĐỔI DECIMAL THÀNH FLOAT
+            water_level = float(result[0]) if result[0] is not None else None
+            trend = result[1]
+            return (water_level, trend)
+        
+        return None
         
     except Exception as e:
         print(f"Error retrieving previous water level: {e}")
         return None
 
 def simulate_river_level(station, weather_data):
-    """Simulate river water level with various realistic factors"""
+    """Simulate river water level with smoothing for realistic changes"""
     
     # Retrieve previous water level
     prev_data = get_previous_river_level(station['location_name'], station['river_name'])
     
-    if prev_data:
+    if prev_data and prev_data[0] is not None:
         prev_level, prev_trend = prev_data
+        prev_level = float(prev_level)
     else:
-        # If no data, start with a random level near normal
         seasonal_adj = get_seasonal_factor()
-        prev_level = station['normal_level'] * seasonal_adj * np.random.uniform(0.8, 1.2)
+        prev_level = float(station['normal_level']) * seasonal_adj * np.random.uniform(0.9, 1.1)
         prev_trend = 'stable'
     
     print(f"  Previous water level: {prev_level:.1f}cm (trend: {prev_trend})")
     
-    # 1. Weather factor
-    weather_impact = get_weather_impact_advanced(weather_data, station)
+    # Calculate all impacts (with reduced factors)
+    if weather_data:
+        safe_weather_data = {}
+        for key, value in weather_data.items():
+            if value is not None:
+                try:
+                    safe_weather_data[key] = float(value)
+                except (ValueError, TypeError):
+                    safe_weather_data[key] = 0.0
+            else:
+                safe_weather_data[key] = 0.0
+        weather_impact = get_weather_impact_advanced(safe_weather_data, station)
+    else:
+        weather_impact = get_weather_impact_advanced(None, station)
     
-    # 2. Seasonal factor
     seasonal_factor = get_seasonal_factor()
-    seasonal_impact = (seasonal_factor - 1) * station['normal_level'] * 0.3
+    seasonal_impact = (seasonal_factor - 1) * float(station['normal_level']) * 0.15  # Reduced from 0.3
     
-    # 3. Daily cycle
     daily_cycle = get_daily_cycle_factor()
-    daily_impact = (daily_cycle - 1) * station['normal_level'] * 0.1
+    daily_impact = (daily_cycle - 1) * float(station['normal_level']) * 0.05  # Reduced from 0.1
     
-    # 4. Tidal effect
     tidal_factor = get_tidal_effect(station)
-    tidal_impact = (tidal_factor - 1) * station['normal_level']
+    tidal_impact = (tidal_factor - 1) * float(station['normal_level']) * 0.5  # Reduced tidal impact
     
-    # 5. Human activities
     human_impact = get_human_activities_impact(station)
-    
-    # 6. Geological factors
     geological_impact = get_geological_factors(station)
-    
-    # 7. Natural drainage
     natural_decline = calculate_natural_flow_change(prev_level, station)
     
-    # 8. Momentum (trend continuation)
     momentum_impact = 0
     if prev_trend == 'rising':
-        momentum_impact = np.random.uniform(2, 8)
+        momentum_impact = np.random.uniform(1, 4)  # Reduced from 2-8
     elif prev_trend == 'falling':
-        momentum_impact = np.random.uniform(-8, -2)
+        momentum_impact = np.random.uniform(-4, -1)  # Reduced from -8 to -2
     
-    # Aggregate all factors
-    total_change = (weather_impact + seasonal_impact + daily_impact + 
-                   tidal_impact + human_impact + geological_impact + 
-                   momentum_impact - natural_decline)
+    total_change = float(weather_impact + seasonal_impact + daily_impact + 
+                        tidal_impact + human_impact + geological_impact + 
+                        momentum_impact - natural_decline)
     
-    # Calculate new water level
-    new_level = prev_level + total_change
+    # Apply smoothing: limit change to max 8cm per crawl
+    max_change = 8.0  # Maximum change per crawl (cm)
+    if abs(total_change) > max_change:
+        total_change = max_change if total_change > 0 else -max_change
+        print(f"  [Smoothing] Limited change to {total_change:+.1f}cm")
     
-    # Add small random noise (measurement error)
-    measurement_noise = np.random.uniform(-2, 2)
+    new_level = float(prev_level) + total_change
+    
+    # Reduced measurement noise
+    measurement_noise = np.random.uniform(-1, 1)  # Reduced from -2 to 2
     new_level += measurement_noise
     
     # Ensure reasonable limits
-    min_level = station['normal_level'] * 0.2  # Minimum 20% of normal level
-    max_level = station['alert_level_3'] * 1.3  # Maximum 130% of alert level 3
+    min_level = float(station['normal_level']) * 0.3  # Minimum 30% of normal level
+    max_level = float(station['alert_level_3']) * 1.2  # Maximum 120% of alert level 3
     
     new_level = max(min_level, min(new_level, max_level))
     
-    # Determine new trend
+    # Determine trend with smaller threshold
     level_change = new_level - prev_level
-    if level_change > 3:
+    if level_change > 2:  # Reduced from 3
         trend = 'rising'
-    elif level_change < -3:
+    elif level_change < -2:  # Reduced from -3
         trend = 'falling'
     else:
         trend = 'stable'
     
-    # Calculate flow rate (more complex)
-    level_ratio = new_level / station['normal_level']
+    # Calculate flow rate with reduced variation
+    level_ratio = new_level / float(station['normal_level'])
+    flow_rate = float(station['base_flow_rate']) * (level_ratio ** 1.5)  # Reduced exponent from 1.8
     
-    # Flow rate increases exponentially with water level
-    flow_rate = station['base_flow_rate'] * (level_ratio ** 1.8)
-    
-    # Adjust for weather
     if weather_data and weather_data.get('rainfall_1h', 0) > 15:
-        flow_rate *= 1.3  # Heavy rain increases flow rate
+        flow_rate *= 1.15  # Reduced from 1.3
     
-    # Add flow rate variation
-    flow_variation = np.random.uniform(0.85, 1.15)
+    flow_variation = np.random.uniform(0.92, 1.08)  # Reduced range from 0.85-1.15
     flow_rate *= flow_variation
     
-    # Print detailed impacts
-    print(f"  Impact details:")
-    print(f"    - Weather: {weather_impact:+.1f}cm")
-    print(f"    - Seasonal: {seasonal_impact:+.1f}cm")
-    print(f"    - Daily cycle: {daily_impact:+.1f}cm")
-    if station['tidal_effect']:
-        print(f"    - Tidal: {tidal_impact:+.1f}cm")
-    if human_impact != 0:
-        print(f"    - Human: {human_impact:+.1f}cm")
-    if geological_impact > 5:
-        print(f"    - Geological: {geological_impact:+.1f}cm")
-    print(f"    - Momentum: {momentum_impact:+.1f}cm")
-    print(f"    - Natural decline: -{natural_decline:.1f}cm")
-    print(f"    - Total change: {total_change:+.1f}cm")
+    # Print impacts (optional, can be commented out for less output)
+    print(f"  Total change: {total_change:+.1f}cm (limited to ±{max_change}cm)")
     
     return {
-        'water_level': round(new_level, 2),
-        'flow_rate': round(flow_rate, 2),
+        'water_level': round(float(new_level), 2),
+        'flow_rate': round(float(flow_rate), 2),
         'trend': trend,
-        'weather_impact': round(weather_impact, 2),
-        'level_change': round(level_change, 2),
-        'seasonal_factor': round(seasonal_factor, 3),
-        'tidal_factor': round(tidal_factor, 3) if station['tidal_effect'] else 1.0
+        'weather_impact': round(float(weather_impact), 2),
+        'level_change': round(float(level_change), 2),
+        'seasonal_factor': round(float(seasonal_factor), 3),
+        'tidal_factor': round(float(tidal_factor), 3) if station['tidal_effect'] else 1.0
     }
 
 def save_river_level_data(station, river_data):
@@ -524,7 +666,7 @@ def save_river_level_data(station, river_data):
         )
         
         cursor.execute(query, values)
-        conn.commit()
+        conn.commit();
         
         print(f"Successfully saved water level data for {station['location_name']} - {station['river_name']}")
         
@@ -536,36 +678,13 @@ def save_river_level_data(station, river_data):
         print(f"Error saving water level data: {e}")
         return False
 
-def check_duplicate_recent(location_name, river_name, hours=1):
-    """Check for recent data within the last few hours"""
-    try:
-        conn = get_connection()
-        if not conn:
-            return False
-            
-        cursor = conn.cursor()
-        
-        query = """
-        SELECT COUNT(*) FROM river_level_data 
-        WHERE location_name = %s AND river_name = %s
-        AND created_at >= DATE_SUB(NOW(), INTERVAL %s HOUR)
-        """
-        
-        cursor.execute(query, (location_name, river_name, hours))
-        count = cursor.fetchone()[0]
-        
-        cursor.close()
-        close_connection(conn)
-        
-        return count > 0
-        
-    except Exception as e:
-        print(f"Error checking duplicate: {e}")
-        return False
-
 def main():
     print("=== STARTING RIVER WATER LEVEL CRAWL (ADVANCED) ===")
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    # Step 1: Check and clean up database
+    print("Checking database...")
+    check_and_cleanup_database()
     
     # Check database connection
     conn = get_connection()
@@ -578,15 +697,15 @@ def main():
     
     success_count = 0
     total_stations = len(RIVER_STATIONS)
+    MIN_DAILY_RECORDS = 3  # Minimum 3 records per day per location
     
     # Crawl data for each measurement station
     for i, station in enumerate(RIVER_STATIONS, 1):
         print(f"\n[{i}/{total_stations}] Processing {station['location_name']} - {station['river_name']}...")
         
-        # Check if data was recently crawled (within 1 hour)
-        if check_duplicate_recent(station['location_name'], station['river_name'], 1):
-            print(f"Recent data exists for {station['location_name']}, skipping...")
-            continue
+        # Check current record count for today
+        daily_count = check_daily_record_count(station['location_name'], station['river_name'])
+        print(f"Current records today for {station['location_name']} - {station['river_name']}: {daily_count}")
         
         try:
             # Retrieve corresponding weather data
@@ -627,6 +746,12 @@ def main():
             if saved:
                 success_count += 1
                 print(f"  Saved successfully")
+                
+                # After saving, check if we have more than 3 records and clean up
+                new_count = check_daily_record_count(station['location_name'], station['river_name'])
+                if new_count > MIN_DAILY_RECORDS:
+                    cleanup_excess_daily_records(station['location_name'], station['river_name'])
+                    print(f"  Kept only {MIN_DAILY_RECORDS} newest records for {station['location_name']} - {station['river_name']}")
             else:
                 print(f"  Failed to save data")
             

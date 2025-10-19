@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Launch GUI for Flood Prediction System
+Launch GUI for flood prediction system
 """
 
 import sys

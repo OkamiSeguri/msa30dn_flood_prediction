@@ -66,8 +66,7 @@ class FloodPredictionGUI:
         menubar.add_cascade(label="File", menu=file_menu)
         file_menu.add_command(label="Setup Database", command=self.setup_database)
         file_menu.add_command(label="Export Report", command=self.export_report)
-        file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self.root.quit)
+        # Removed: file_menu.add_command(label="Exit", command=self.root.quit)
         
         # Data menu
         data_menu = tk.Menu(menubar, tearoff=0)
@@ -131,14 +130,13 @@ class FloodPredictionGUI:
         # Data summary
         ttk.Label(left_frame, text="Data Statistics:", style='Header.TLabel').pack(anchor='w')
         self.data_summary_text = tk.Text(left_frame, height=8, wrap=tk.WORD)
-        self.data_summary_text.pack(fill=tk.BOTH, expand=True, pady=(5,10))
+        result_scroll = ttk.Scrollbar(left_frame, orient="vertical", command=self.data_summary_text.yview)
+        self.data_summary_text.configure(yscrollcommand=result_scroll.set)
+        self.data_summary_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        result_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Buttons
-        button_frame = ttk.Frame(left_frame)
-        button_frame.pack(fill=tk.X, pady=5)
-        
-        ttk.Button(button_frame, text="Refresh", command=self.refresh_dashboard).pack(side=tk.LEFT, padx=(0,5))
-        ttk.Button(button_frame, text="Run Auto", command=self.run_auto_system).pack(side=tk.LEFT, padx=5)
+        # Refresh button - Di chuyển lên góc phải trên cùng
+        ttk.Button(left_frame, text="Refresh", command=self.refresh_dashboard).pack(anchor='ne', padx=10, pady=10)
         
         # Right frame - Charts
         right_frame = ttk.LabelFrame(dashboard_frame, text="Overview Charts", padding=10)
@@ -272,6 +270,9 @@ class FloodPredictionGUI:
                                             "Hue", "Can_Tho", "Hai_Phong", "Nha_Trang"])
         location_combo.pack(fill=tk.X, pady=2)
         
+        # Bind event to load data when location is selected
+        location_combo.bind("<<ComboboxSelected>>", self.on_location_selected)
+        
         # Predict button
         predict_btn = ttk.Button(right_input, text="PREDICT FLOOD", 
                                 command=self.perform_prediction, style='Accent.TButton')
@@ -299,55 +300,205 @@ class FloodPredictionGUI:
         self.risk_display_frame = ttk.Frame(right_result)
         self.risk_display_frame.pack(fill=tk.BOTH, expand=True)
 
+    def on_location_selected(self, event):
+        """Load latest river data for selected location and update UI"""
+        location = self.location_var.get()
+        
+        try:
+            conn = get_connection()
+            if conn:
+                cursor = conn.cursor()
+                
+                # Query latest river data for the selected location
+                query = """
+                SELECT water_level, flow_rate, trend FROM river_level_data 
+                WHERE location_name = %s ORDER BY created_at DESC LIMIT 1
+                """
+                
+                cursor.execute(query, (location,))
+                result = cursor.fetchone()
+                
+                if result:
+                    water_level, flow_rate, trend = result
+                    
+                    # Update slider variables
+                    self.water_level_var.set(float(water_level))
+                    self.flow_rate_var.set(float(flow_rate))
+                    self.trend_var.set(trend)
+                    
+                    # Update slider labels
+                    self.water_value_label.config(text=f"{int(water_level)}cm")
+                    self.flow_value_label.config(text=f"{int(flow_rate)}m³/s")
+                    
+                    # Update status
+                    self.update_status(f"Loaded data for {location}")
+                else:
+                    # No data found, reset to defaults
+                    self.water_level_var.set(150.0)
+                    self.flow_rate_var.set(800.0)
+                    self.trend_var.set("stable")
+                    self.water_value_label.config(text="150cm")
+                    self.flow_value_label.config(text="800m³/s")
+                    self.update_status(f"No river data found for {location}, using defaults")
+                
+                cursor.close()
+                close_connection(conn)
+            else:
+                messagebox.showerror("Error", "Cannot connect to database")
+                
+        except Exception as e:
+            self.update_status("Error loading location data")
+            messagebox.showerror("Error", f"Error loading data for {location}: {str(e)}")
+
     def create_data_tab(self):
         """Data Tab - Manage and view data"""
         data_frame = ttk.Frame(self.notebook)
         self.notebook.add(data_frame, text="Data")
         
-        # Control panel
+        # Create sub-notebook for Rainfall, River, and Predictions data
+        self.data_notebook = ttk.Notebook(data_frame)
+        self.data_notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        # Rainfall Data sub-tab
+        self.create_rainfall_data_subtab()
+        
+        # River Level Data sub-tab
+        self.create_river_data_subtab()
+        
+        # Predictions Data sub-tab
+        self.create_predictions_data_subtab()
+        
+        # Control panel for both sub-tabs
         control_frame = ttk.LabelFrame(data_frame, text="Data Control", padding=10)
         control_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        # Buttons row 1
-        btn_frame1 = ttk.Frame(control_frame)
-        btn_frame1.pack(fill=tk.X, pady=2)
+        # Buttons row
+        btn_frame = ttk.Frame(control_frame)
+        btn_frame.pack(fill=tk.X, pady=2)
         
-        ttk.Button(btn_frame1, text="Crawl Weather", 
+        ttk.Button(btn_frame, text="Crawl Weather", 
                   command=self.crawl_weather_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame1, text="Crawl River", 
+        ttk.Button(btn_frame, text="Crawl River", 
                   command=self.crawl_river_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame1, text="Refresh Data", 
-                  command=self.refresh_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame1, text="Cleanup DB", 
+        ttk.Button(btn_frame, text="Refresh All Data", 
+                  command=self.refresh_all_data).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Cleanup DB", 
                   command=self.cleanup_database).pack(side=tk.LEFT, padx=5)
+
+    def create_rainfall_data_subtab(self):
+        """Create Rainfall Data sub-tab"""
+        rainfall_frame = ttk.Frame(self.data_notebook)
+        self.data_notebook.add(rainfall_frame, text="Rainfall Data")
         
-        # Data display
-        data_display_frame = ttk.LabelFrame(data_frame, text="Current Data", padding=10)
-        data_display_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        # Control frame for rainfall
+        rainfall_control = ttk.Frame(rainfall_frame)
+        rainfall_control.pack(fill=tk.X, padx=10, pady=5)
+        
+        ttk.Button(rainfall_control, text="Refresh Rainfall Data", 
+                  command=self.refresh_rainfall_data).pack(side=tk.LEFT, padx=5)
         
         # Treeview frame
-        tree_frame = ttk.Frame(data_display_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True)
+        tree_frame = ttk.Frame(rainfall_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        # Treeview for data display
-        columns = ['Location', 'Time', 'Temperature', 'Humidity', 'Rainfall', 'Water_Level', 'Risk']
-        self.data_tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=20)
+        # Treeview for rainfall data
+        columns = ['Location', 'Time', 'Temperature', 'Humidity', 'Rainfall 1h', 'Rainfall 3h', 'Wind Speed']
+        self.rainfall_tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=20)
         
         # Set column headings and widths
         column_widths = {'Location': 120, 'Time': 150, 'Temperature': 100, 'Humidity': 80, 
-                        'Rainfall': 80, 'Water_Level': 100, 'Risk': 80}
+                        'Rainfall 1h': 100, 'Rainfall 3h': 100, 'Wind Speed': 100}
         
         for col in columns:
-            self.data_tree.heading(col, text=col.replace('_', ' '))
-            self.data_tree.column(col, width=column_widths.get(col, 100))
+            self.rainfall_tree.heading(col, text=col)
+            self.rainfall_tree.column(col, width=column_widths.get(col, 100))
         
         # Scrollbars
-        v_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.data_tree.yview)
-        h_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.HORIZONTAL, command=self.data_tree.xview)
-        self.data_tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+        v_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.rainfall_tree.yview)
+        h_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.HORIZONTAL, command=self.rainfall_tree.xview)
+        self.rainfall_tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
         
         # Pack treeview and scrollbars
-        self.data_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.rainfall_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+    def create_river_data_subtab(self):
+        """Create River Level Data sub-tab"""
+        river_frame = ttk.Frame(self.data_notebook)
+        self.data_notebook.add(river_frame, text="River Level Data")
+        
+        # Control frame for river
+        river_control = ttk.Frame(river_frame)
+        river_control.pack(fill=tk.X, padx=10, pady=5)
+        
+        ttk.Button(river_control, text="Refresh River Data", 
+                  command=self.refresh_river_data).pack(side=tk.LEFT, padx=5)
+        
+        # Treeview frame
+        tree_frame = ttk.Frame(river_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        # Treeview for river data
+        columns = ['Location', 'Time', 'Water Level', 'Flow Rate', 'Trend']
+        self.river_tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=20)
+        
+        # Set column headings and widths
+        column_widths = {'Location': 120, 'Time': 150, 'Water Level': 100, 'Flow Rate': 100, 'Trend': 80}
+        
+        for col in columns:
+            self.river_tree.heading(col, text=col)
+            self.river_tree.column(col, width=column_widths.get(col, 100))
+        
+        # Scrollbars
+        v_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.river_tree.yview)
+        h_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.HORIZONTAL, command=self.river_tree.xview)
+        self.river_tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+        
+        # Pack treeview and scrollbars
+        self.river_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+    def create_predictions_data_subtab(self):
+        """Create Predictions Data sub-tab"""
+        predictions_frame = ttk.Frame(self.data_notebook)
+        self.data_notebook.add(predictions_frame, text="Predictions")
+        
+        # Control frame for predictions
+        predictions_control = ttk.Frame(predictions_frame)
+        predictions_control.pack(fill=tk.X, padx=10, pady=5)
+        
+        ttk.Button(predictions_control, text="Refresh Predictions", 
+                  command=self.refresh_predictions_data).pack(side=tk.LEFT, padx=5)
+        ttk.Button(predictions_control, text="Clear Old Predictions", 
+                  command=self.clear_old_predictions).pack(side=tk.LEFT, padx=5)
+        
+        # Treeview frame
+        tree_frame = ttk.Frame(predictions_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        # Treeview for predictions data
+        columns = ['Location', 'Time', 'Risk Level', 'Probability', 'Weather Factor', 
+                  'River Factor', 'Combined Score', 'Rainfall 1h', 'Water Level', 'Recommendations']
+        self.predictions_tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=20)
+        
+        # Set column headings and widths
+        column_widths = {'Location': 100, 'Time': 150, 'Risk Level': 80, 'Probability': 80, 
+                        'Weather Factor': 100, 'River Factor': 100, 'Combined Score': 100, 
+                        'Rainfall 1h': 100, 'Water Level': 100, 'Recommendations': 200}
+        
+        for col in columns:
+            self.predictions_tree.heading(col, text=col)
+            self.predictions_tree.column(col, width=column_widths.get(col, 100))
+        
+        # Scrollbars
+        v_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.predictions_tree.yview)
+        h_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.HORIZONTAL, command=self.predictions_tree.xview)
+        self.predictions_tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+        
+        # Pack treeview and scrollbars
+        self.predictions_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
 
@@ -446,11 +597,11 @@ class FloodPredictionGUI:
         self.max_depth_var = tk.IntVar(value=10)
         depth_frame = ttk.Frame(model_frame)
         depth_frame.grid(row=1, column=1, sticky='ew', padx=10, pady=5)
-        ttk.Scale(depth_frame, from_=5, to=20, orient=tk.HORIZONTAL,
+        ttk.Scale(depth_frame, from_=1, to=30, orient=tk.HORIZONTAL,
                  variable=self.max_depth_var).pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.depth_label = ttk.Label(depth_frame, text="10")
         self.depth_label.pack(side=tk.RIGHT)
-
+        
     def create_status_bar(self):
         """Create status bar"""
         self.status_bar = ttk.Frame(self.root, relief=tk.SUNKEN, borderwidth=1)
@@ -461,6 +612,9 @@ class FloodPredictionGUI:
         
         self.progress_bar = ttk.Progressbar(self.status_bar, length=200, mode='indeterminate')
         self.progress_bar.pack(side=tk.RIGHT, padx=5, pady=2)
+        
+        # Add Exit button to status bar
+        ttk.Button(self.status_bar, text="Exit", command=self.root.quit).pack(side=tk.RIGHT, padx=5, pady=2)
 
     def update_status(self, message, show_progress=False):
         """Update status bar"""
@@ -577,15 +731,19 @@ Model: {'3 Levels' if river_count > 0 else '2 Levels'}
                 self.dashboard_canvas.draw()
                 return
             
-            # Chart 1: Temperature trend
+            # Chart 1: Temperature trend (Top-Left)
             if len(df) > 0 and 'temperature' in df.columns:
                 temps = df['temperature'].tail(20).values
                 self.dashboard_axes[0,0].plot(temps, 'b-o', markersize=3)
                 self.dashboard_axes[0,0].set_title('Temperature Trend (Last 20 Samples)')
                 self.dashboard_axes[0,0].set_ylabel('°C')
                 self.dashboard_axes[0,0].grid(True, alpha=0.3)
+                # Add description
+                self.dashboard_axes[0,0].text(0.02, 0.98, 'Shows recent temperature changes\nover time (blue line)', 
+                                             transform=self.dashboard_axes[0,0].transAxes, fontsize=8, 
+                                             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
             
-            # Chart 2: Rainfall distribution
+            # Chart 2: Rainfall distribution (Top-Right)
             if 'rainfall_1h' in df.columns:
                 rainfall_data = df['rainfall_1h'].values
                 rainfall_data = rainfall_data[rainfall_data >= 0]  # Remove negative values
@@ -593,8 +751,12 @@ Model: {'3 Levels' if river_count > 0 else '2 Levels'}
                 self.dashboard_axes[0,1].set_title('Rainfall Distribution')
                 self.dashboard_axes[0,1].set_xlabel('mm/h')
                 self.dashboard_axes[0,1].set_ylabel('Frequency')
+                # Add description
+                self.dashboard_axes[0,1].text(0.02, 0.98, 'Shows how often different\nrainfall amounts occur\n(blue bars)', 
+                                             transform=self.dashboard_axes[0,1].transAxes, fontsize=8, 
+                                             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.5))
             
-            # Chart 3: Risk levels (if available)
+            # Chart 3: Risk levels (Bottom-Left)
             if 'flood_risk_level' in df.columns:
                 risk_counts = df['flood_risk_level'].value_counts().sort_index()
                 labels = ['LOW', 'MODERATE', 'HIGH']
@@ -605,6 +767,10 @@ Model: {'3 Levels' if river_count > 0 else '2 Levels'}
                                                 colors=[colors[i] for i in risk_counts.index],
                                                 autopct='%1.1f%%', startangle=90)
                     self.dashboard_axes[1,0].set_title('Risk Level Distribution')
+                # Add description
+                self.dashboard_axes[1,0].text(0.02, 0.02, 'Shows percentage of flood risk levels\n(Green=Low, Orange=Moderate, Red=High)', 
+                                             transform=self.dashboard_axes[1,0].transAxes, fontsize=8, 
+                                             verticalalignment='bottom', bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.5))
             elif 'flood_risk' in df.columns:
                 risk_counts = df['flood_risk'].value_counts()
                 labels = ['No Flood', 'Flood']
@@ -613,8 +779,12 @@ Model: {'3 Levels' if river_count > 0 else '2 Levels'}
                     self.dashboard_axes[1,0].pie(risk_counts.values, labels=labels, 
                                                 colors=colors, autopct='%1.1f%%', startangle=90)
                     self.dashboard_axes[1,0].set_title('Flood Risk Distribution')
+                # Add description
+                self.dashboard_axes[1,0].text(0.02, 0.02, 'Shows percentage of flood vs no-flood\n(Green=No Flood, Red=Flood)', 
+                                             transform=self.dashboard_axes[1,0].transAxes, fontsize=8, 
+                                             verticalalignment='bottom', bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.5))
             
-            # Chart 4: Water level trend (if available)
+            # Chart 4: Water level trend (Bottom-Right)
             if 'water_level' in df.columns:
                 water_levels = df['water_level'].tail(20).values
                 self.dashboard_axes[1,1].plot(water_levels, 'r-o', markersize=3)
@@ -628,9 +798,9 @@ Model: {'3 Levels' if river_count > 0 else '2 Levels'}
                     alert2 = df['alert_level_2'].iloc[0] if len(df) > 0 else 220
                     alert3 = df['alert_level_3'].iloc[0] if len(df) > 0 else 270
                     
-                    self.dashboard_axes[1,1].axhline(y=alert1, color='yellow', linestyle='--', alpha=0.7, label='Alert 1')
-                    self.dashboard_axes[1,1].axhline(y=alert2, color='orange', linestyle='--', alpha=0.7, label='Alert 2')
-                    self.dashboard_axes[1,1].axhline(y=alert3, color='red', linestyle='--', alpha=0.7, label='Alert 3')
+                    self.dashboard_axes[1,1].axhline(y=alert1, color='green', linestyle='--', alpha=0.7, label='Low Alert')
+                    self.dashboard_axes[1,1].axhline(y=alert2, color='yellow', linestyle='--', alpha=0.7, label='Moderate Alert')
+                    self.dashboard_axes[1,1].axhline(y=alert3, color='red', linestyle='--', alpha=0.7, label='High Alert')
                     self.dashboard_axes[1,1].legend()
             else:
                 # Show humidity instead
@@ -640,6 +810,10 @@ Model: {'3 Levels' if river_count > 0 else '2 Levels'}
                     self.dashboard_axes[1,1].set_title('Humidity Trend')
                     self.dashboard_axes[1,1].set_ylabel('%')
                     self.dashboard_axes[1,1].grid(True, alpha=0.3)
+                    # Add description
+                    self.dashboard_axes[1,1].text(0.02, 0.98, 'Shows recent humidity changes\n(green line)', 
+                                                 transform=self.dashboard_axes[1,1].transAxes, fontsize=8, 
+                                                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.5))
             
             plt.tight_layout()
             self.dashboard_canvas.draw()
@@ -695,6 +869,8 @@ Model: {'3 Levels' if river_count > 0 else '2 Levels'}
             
             if result:
                 self.display_prediction_result(result, input_data)
+                # Save prediction to database
+                self.save_prediction_to_db(result, input_data)
             else:
                 messagebox.showerror("Error", "Unable to perform prediction!")
                 
@@ -702,6 +878,298 @@ Model: {'3 Levels' if river_count > 0 else '2 Levels'}
             messagebox.showerror("Error", f"Prediction error: {str(e)}")
             import traceback
             print(traceback.format_exc())
+
+    def save_prediction_to_db(self, result, input_data):
+        """Save prediction result to database"""
+        try:
+            conn = get_connection()
+            if not conn:
+                print("Cannot connect to database for saving prediction")
+                return
+            
+            cursor = conn.cursor()
+            
+            # Prepare data for insertion
+            location_name = self.location_var.get()
+            risk_level = result['risk_level'] if self.is_advanced else ('HIGH' if result['probability_flood'] > 0.7 else 'MODERATE' if result['probability_flood'] > 0.4 else 'LOW')
+            probability = result['probabilities']['HIGH'] if self.is_advanced else result['probability_flood']
+            confidence = result['confidence']
+            
+            # Calculate factors (simplified)
+            weather_factor = (input_data['rainfall_1h'] / 50.0 + input_data['humidity'] / 100.0) / 2.0
+            river_factor = (input_data.get('water_level', 150) / 300.0) if self.is_advanced else 0.0
+            combined_score = (weather_factor + river_factor) / 2.0
+            
+            alert_exceeded = input_data.get('alert_level_exceeded', 0) if self.is_advanced else 0
+            
+            # Generate recommendations
+            if risk_level == 'HIGH':
+                recommendations = "Immediate evacuation required. Activate emergency response."
+            elif risk_level == 'MODERATE':
+                recommendations = "Monitor closely. Prepare evacuation if conditions worsen."
+            else:
+                recommendations = "Continue normal monitoring. No immediate action required."
+            
+            # Insert into database
+            query = """
+            INSERT INTO flood_predictions 
+            (location_name, risk_level, probability, weather_factor, river_factor, 
+             combined_score, rainfall_1h, rainfall_3h, water_level, alert_level_exceeded, 
+             recommendations, model_version)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            
+            cursor.execute(query, (
+                location_name, risk_level, probability, weather_factor, river_factor,
+                combined_score, input_data['rainfall_1h'], input_data['rainfall_3h'], 
+                input_data.get('water_level'), alert_exceeded, recommendations, 'v1.0'
+            ))
+            
+            conn.commit()
+            cursor.close()
+            close_connection(conn)
+            
+            print(f"Prediction saved for {location_name}: {risk_level}")
+            
+        except Exception as e:
+            print(f"Error saving prediction to database: {str(e)}")
+
+    def refresh_all_data(self):
+        """Refresh both rainfall and river data"""
+        self.refresh_rainfall_data()
+        self.refresh_river_data()
+        self.refresh_predictions_data()
+
+    def refresh_rainfall_data(self):
+        """Refresh rainfall data display"""
+        try:
+            self.update_status("Loading rainfall data...", True)
+            
+            # Clear treeview
+            for item in self.rainfall_tree.get_children():
+                self.rainfall_tree.delete(item)
+            
+            # Load rainfall data
+            conn = get_connection()
+            if conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT location_name, created_at, 
+                           JSON_EXTRACT(precipitation, '$.temperature') as temperature,
+                           JSON_EXTRACT(precipitation, '$.humidity') as humidity,
+                           JSON_EXTRACT(precipitation, '$.rainfall_1h') as rainfall_1h,
+                           JSON_EXTRACT(precipitation, '$.rainfall_3h') as rainfall_3h,
+                           JSON_EXTRACT(precipitation, '$.wind_speed') as wind_speed
+                    FROM rainfall_data 
+                    ORDER BY created_at DESC LIMIT 100
+                """)
+                rows = cursor.fetchall()
+                cursor.close()
+                close_connection(conn)
+                
+                for row in rows:
+                    values = [
+                        row[0],  # location_name
+                        str(row[1])[:19] if row[1] else 'N/A',  # created_at
+                        f"{float(row[2]):.1f}°C" if row[2] and row[2] != 'null' else 'N/A',  # temperature
+                        f"{float(row[3]):.0f}%" if row[3] and row[3] != 'null' else 'N/A',  # humidity
+                        f"{float(row[4]):.1f}mm" if row[4] and row[4] != 'null' else 'N/A',  # rainfall_1h
+                        f"{float(row[5]):.1f}mm" if row[5] and row[5] != 'null' else 'N/A',  # rainfall_3h
+                        f"{float(row[6]):.1f}km/h" if row[6] and row[6] != 'null' else 'N/A'  # wind_speed
+                    ]
+                    self.rainfall_tree.insert('', 'end', values=values)
+            
+            self.update_status("Loaded rainfall data")
+            
+        except Exception as e:
+            self.update_status("Error loading rainfall data")
+            messagebox.showerror("Error", f"Error refreshing rainfall data: {str(e)}")
+
+    def refresh_river_data(self):
+        """Refresh river level data display"""
+        try:
+            self.update_status("Loading river data...", True)
+            
+            # Clear treeview
+            for item in self.river_tree.get_children():
+                self.river_tree.delete(item)
+            
+            # Load river data
+            conn = get_connection()
+            if conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT location_name, created_at, water_level, flow_rate, trend 
+                    FROM river_level_data 
+                    ORDER BY created_at DESC LIMIT 100
+                """)
+                rows = cursor.fetchall()
+                cursor.close()
+                close_connection(conn)
+                
+                for row in rows:
+                    values = [
+                        row[0],  # location_name
+                        str(row[1])[:19] if row[1] else 'N/A',  # created_at
+                        f"{float(row[2]):.0f}cm" if row[2] else 'N/A',  # water_level
+                        f"{float(row[3]):.0f}m³/s" if row[3] else 'N/A',  # flow_rate
+                        row[4] if row[4] else 'N/A'  # trend
+                    ]
+                    self.river_tree.insert('', 'end', values=values)
+            
+            self.update_status("Loaded river data")
+            
+        except Exception as e:
+            self.update_status("Error loading river data")
+            messagebox.showerror("Error", f"Error refreshing river data: {str(e)}")
+
+    def refresh_predictions_data(self):
+        """Refresh predictions data display"""
+        try:
+            self.update_status("Loading predictions data...", True)
+            
+            # Clear treeview
+            for item in self.predictions_tree.get_children():
+                self.predictions_tree.delete(item)
+            
+            # Load predictions data
+            conn = get_connection()
+            if conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT location_name, prediction_time, risk_level, probability, 
+                           weather_factor, river_factor, combined_score, rainfall_1h, 
+                           water_level, recommendations 
+                    FROM flood_predictions 
+                    ORDER BY prediction_time DESC LIMIT 100
+                """)
+                rows = cursor.fetchall()
+                cursor.close()
+                close_connection(conn)
+                
+                for row in rows:
+                    values = [
+                        row[0],  # location_name
+                        str(row[1])[:19] if row[1] else 'N/A',  # prediction_time
+                        row[2],  # risk_level
+                        f"{float(row[3]):.1%}" if row[3] else 'N/A',  # probability
+                        f"{float(row[4]):.3f}" if row[4] else 'N/A',  # weather_factor
+                        f"{float(row[5]):.3f}" if row[5] else 'N/A',  # river_factor
+                        f"{float(row[6]):.3f}" if row[6] else 'N/A',  # combined_score
+                        f"{float(row[7]):.1f}mm" if row[7] else 'N/A',  # rainfall_1h
+                        f"{float(row[8]):.0f}cm" if row[8] else 'N/A',  # water_level
+                        row[9] if row[9] else 'N/A'  # recommendations
+                    ]
+                    self.predictions_tree.insert('', 'end', values=values)
+            
+            self.update_status("Loaded predictions data")
+            
+        except Exception as e:
+            self.update_status("Error loading predictions data")
+            messagebox.showerror("Error", f"Error refreshing predictions data: {str(e)}")
+
+    def clear_old_predictions(self):
+        """Clear old predictions (keep only last 500)"""
+        if messagebox.askyesno("Confirmation", "Are you sure you want to clear old predictions?\nThis will keep only the 500 most recent predictions."):
+            try:
+                self.update_status("Clearing old predictions...", True)
+                
+                conn = get_connection()
+                if conn:
+                    cursor = conn.cursor()
+                    
+                    # Keep only last 500 predictions
+                    cursor.execute("""
+                        DELETE FROM flood_predictions 
+                        WHERE id NOT IN (
+                            SELECT id FROM (
+                                SELECT id FROM flood_predictions 
+                                ORDER BY prediction_time DESC LIMIT 500
+                            ) AS temp
+                        )
+                    """)
+                    
+                    deleted_count = cursor.rowcount
+                    conn.commit()
+                    cursor.close()
+                    close_connection(conn)
+                    
+                    self.update_status(f"Cleared {deleted_count} old predictions")
+                    messagebox.showinfo("Success", f"Cleared {deleted_count} old predictions!")
+                    self.refresh_predictions_data()
+                else:
+                    messagebox.showerror("Error", "Cannot connect to database")
+                    
+            except Exception as e:
+                self.update_status("Error clearing predictions")
+                messagebox.showerror("Error", f"Error clearing predictions: {str(e)}")
+
+    # Placeholder methods for other functionalities
+    def setup_database(self):
+        messagebox.showinfo("Info", "Database setup functionality not implemented yet.")
+
+    def export_report(self):
+        messagebox.showinfo("Info", "Export report functionality not implemented yet.")
+
+    def crawl_weather_data(self):
+        messagebox.showinfo("Info", "Crawl weather data functionality not implemented yet.")
+
+    def crawl_river_data(self):
+        messagebox.showinfo("Info", "Crawl river data functionality not implemented yet.")
+
+    def manage_database(self):
+        messagebox.showinfo("Info", "Manage database functionality not implemented yet.")
+
+    def train_prediction_model(self):
+        messagebox.showinfo("Info", "Train model functionality not implemented yet.")
+
+    def evaluate_model(self):
+        messagebox.showinfo("Info", "Evaluate model functionality not implemented yet.")
+
+    def show_help(self):
+        messagebox.showinfo("Help", "Help functionality not implemented yet.")
+
+    def show_about(self):
+        messagebox.showinfo("About", "About functionality not implemented yet.")
+
+    def run_auto_system(self):
+        messagebox.showinfo("Info", "Auto system functionality not implemented yet.")
+
+    def generate_reports(self):
+        messagebox.showinfo("Info", "Generate reports functionality not implemented yet.")
+
+    def export_to_excel(self):
+        messagebox.showinfo("Info", "Export to Excel functionality not implemented yet.")
+
+    def cleanup_database(self):
+        messagebox.showinfo("Info", "Cleanup database functionality not implemented yet.")
+
+    def test_db_connection(self):
+        messagebox.showinfo("Info", "Test DB connection functionality not implemented yet.")
+
+    def save_db_settings(self):
+        messagebox.showinfo("Info", "Save DB settings functionality not implemented yet.")
+
+    def test_api_key(self):
+        messagebox.showinfo("Info", "Test API key functionality not implemented yet.")
+
+    def save_api_key(self):
+        messagebox.showinfo("Info", "Save API key functionality not implemented yet.")
+
+    def display_prediction_result(self, result, input_data):
+        """Display prediction result in the text area"""
+        self.result_text.delete(1.0, tk.END)
+        
+        result_text = f"Flood Prediction Result\n{'='*30}\n\n"
+        result_text += f"Risk Level: {result['risk_level']}\n"
+        result_text += f"Probability: {result['probabilities']['HIGH']:.1%}\n"
+        result_text += f"Confidence: {result['confidence']:.1%}\n\n"
+        
+        result_text += "Input Data:\n"
+        for key, value in input_data.items():
+            result_text += f"  {key}: {value}\n"
+        
+        self.result_text.insert(tk.END, result_text)
 
     def calculate_alert_level(self, water_level):
         """Calculate alert level based on water level"""
@@ -714,915 +1182,10 @@ Model: {'3 Levels' if river_count > 0 else '2 Levels'}
         else:
             return 0
 
-    def display_prediction_result(self, result, input_data):
-        """Display prediction result"""
-        # Clear previous results
-        self.result_text.delete(1.0, tk.END)
-        
-        # Clear risk display frame
-        for widget in self.risk_display_frame.winfo_children():
-            widget.destroy()
-        
-        # Display text result
-        result_text = f"""{'='*50}
-FLOOD PREDICTION RESULT
-{'='*50}
-
-Location: {self.location_var.get()}
-Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-Model: {'Advanced (3 Levels)' if self.is_advanced else 'Basic (2 Levels)'}
-
-{'='*50}
-INPUT DATA:
-{'='*50}
-- Temperature: {input_data['temperature']:.1f}°C
-- Humidity: {input_data['humidity']:.0f}%
-- Pressure: {input_data['pressure']:.0f} hPa
-- Rainfall 1h: {input_data['rainfall_1h']:.1f} mm
-- Rainfall 3h: {input_data['rainfall_3h']:.1f} mm
-- Wind Speed: {input_data['wind_speed']:.0f} km/h
-"""
-        
-        if self.is_advanced and 'water_level' in input_data:
-            result_text += f"""- Water Level: {input_data['water_level']:.0f} cm
-- Flow Rate: {input_data.get('flow_rate', 0):.0f} m³/s
-- Trend: {self.trend_var.get()}
-- Alert Level: {input_data.get('alert_level_exceeded', 0)}
-"""
-        
-        result_text += f"""\n{'='*50}
-PREDICTION RESULT:
-{'='*50}
-"""
-        
-        if self.is_advanced:
-            risk_level = result['risk_level']
-            confidence = result['confidence']
-            
-            result_text += f"""Risk Level: {risk_level}
-Confidence: {confidence:.1%}
-
-Probability per Level:
-"""
-            
-            for level, prob in result['probabilities'].items():
-                result_text += f"  {level}: {prob:.1%}\n"
-            
-            # Create visual risk display
-            self.create_risk_display(risk_level, confidence, result['probabilities'])
-            
-        else:
-            flood_prob = result['probability_flood']
-            confidence = result['confidence']
-            
-            result_text += f"""Flood Probability: {flood_prob:.1%}
-Confidence: {confidence:.1%}
-"""
-            
-            # Determine risk level for basic model
-            if flood_prob < 0.3:
-                risk_level = "LOW"
-                color = "green"
-            elif flood_prob < 0.7:
-                risk_level = "MODERATE"
-                color = "orange"
-            else:
-                risk_level = "HIGH"
-                color = "red"
-            
-            result_text += f"Risk Level: {risk_level}\n"
-            
-            # Create simple risk display for basic model
-            self.create_simple_risk_display(risk_level, flood_prob, color)
-        
-        # Add recommendations
-        result_text += f"""\n{'='*50}
-RECOMMENDATIONS:
-{'='*50}
-"""
-        if self.is_advanced:
-            if result['risk_level'] == 'HIGH':
-                result_text += """HIGH RISK - Emergency response required!
-- Evacuate residents in danger zones
-- Prepare emergency relief supplies
-- Continuously monitor water levels
-- Activate emergency response team
-- Issue warnings to all areas
-"""
-            elif result['risk_level'] == 'MODERATE':
-                result_text += """MODERATE RISK - Closely monitor
-- Prepare response measures
-- Notify residents in low-lying areas
-- Check drainage systems
-- Continuously monitor weather forecasts
-"""
-            else:
-                result_text += """LOW RISK - Continue monitoring
-- Maintain normal operations
-- Periodically check weather updates
-- Check warning systems
-"""
-        else:
-            if flood_prob > 0.7:
-                result_text += """HIGH RISK - Take note!
-- Closely monitor weather developments
-- Prepare response measures
-- Check drainage systems
-"""
-            elif flood_prob > 0.4:
-                result_text += """MODERATE RISK
-- Continue monitoring
-- Prepare if necessary
-"""
-            else:
-                result_text += """LOW RISK
-- Normal operations
-- Monitor weather updates
-"""
-        
-        result_text += f"\n{'='*50}\nReport generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'='*50}"
-        
-        self.result_text.insert(tk.END, result_text)
-
-    def create_risk_display(self, risk_level, confidence, probabilities):
-        """Create visual risk display for advanced model"""
-        # Risk level indicator
-        risk_colors = {'LOW': '#27ae60', 'MODERATE': '#f39c12', 'HIGH': '#e74c3c'}
-        color = risk_colors.get(risk_level, '#95a5a6')
-        
-        # Large risk indicator
-        risk_frame = tk.Frame(self.risk_display_frame, bg=color, relief=tk.RAISED, bd=3)
-        risk_frame.pack(fill=tk.X, pady=10)
-        
-        risk_label = tk.Label(risk_frame, text=f"RISK {risk_level}", 
-                             font=('Arial', 18, 'bold'), fg='white', bg=color)
-        risk_label.pack(pady=15)
-        
-        confidence_label = tk.Label(risk_frame, text=f"Confidence: {confidence:.1%}",
-                                   font=('Arial', 12), fg='white', bg=color)
-        confidence_label.pack(pady=(0, 15))
-        
-        # Probability bars
-        prob_frame = ttk.LabelFrame(self.risk_display_frame, text="Probability per Level")
-        prob_frame.pack(fill=tk.X, pady=10)
-        
-        colors = {'LOW': '#27ae60', 'MODERATE': '#f39c12', 'HIGH': '#e74c3c'}
-        
-        for level, prob in probabilities.items():
-            level_frame = tk.Frame(prob_frame)
-            level_frame.pack(fill=tk.X, padx=10, pady=5)
-            
-            # Label
-            level_label = tk.Label(level_frame, text=f"{level}:", width=10, anchor='w', font=('Arial', 10, 'bold'))
-            level_label.pack(side=tk.LEFT)
-            
-            # Progress bar frame
-            bar_frame = tk.Frame(level_frame, height=20, relief=tk.SUNKEN, bd=1)
-            bar_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-            
-            # Filled portion
-            fill_width = int(200 * prob)
-            if fill_width > 0:
-                fill_frame = tk.Frame(bar_frame, bg=colors[level], height=18)
-                fill_frame.place(x=0, y=0, width=fill_width, height=18)
-            
-            # Percentage label
-            percent_label = tk.Label(level_frame, text=f"{prob:.1%}", width=8, font=('Arial', 10))
-            percent_label.pack(side=tk.RIGHT)
-
-    def create_simple_risk_display(self, risk_level, probability, color):
-        """Create simple display for basic model"""
-        # Risk indicator
-        risk_frame = tk.Frame(self.risk_display_frame, bg=color, relief=tk.RAISED, bd=3)
-        risk_frame.pack(fill=tk.X, pady=20)
-        
-        risk_label = tk.Label(risk_frame, text=f"RISK {risk_level}", 
-                             font=('Arial', 18, 'bold'), fg='white', bg=color)
-        risk_label.pack(pady=20)
-        
-        prob_label = tk.Label(risk_frame, text=f"Flood Probability: {probability:.1%}",
-                             font=('Arial', 12), fg='white', bg=color)
-        prob_label.pack(pady=(0, 20))
-
-    def train_prediction_model(self):
-        """Train prediction model"""
-        self.update_status("Training model...", True)
-        
-        def train_in_thread():
-            try:
-                # Load data
-                combined_df = load_combined_data()
-                
-                if combined_df is not None and len(combined_df) > 0:
-                    print("Using combined data")
-                    real_df = combined_df
-                    use_advanced = True
-                    real_df = create_flood_labels(real_df)
-                    synthetic_df = generate_advanced_training_data(real_df)
-                else:
-                    print("Using basic data")
-                    real_df = load_data_from_db()
-                    if real_df is None:
-                        real_df = pd.DataFrame()
-                    use_advanced = False
-                    if len(real_df) > 0:
-                        real_df = create_flood_labels(real_df)
-                    
-                    # Generate basic synthetic data
-                    synthetic_data = []
-                    for i in range(100):
-                        sample = {
-                            'location_name': f'Sample_{i}',
-                            'latitude': 10.0 + np.random.uniform(-5, 5),
-                            'longitude': 106.0 + np.random.uniform(-5, 5),
-                            'temperature': 26.0 + np.random.uniform(-5, 5),
-                            'humidity': np.random.uniform(40, 98),
-                            'pressure': 1013.0 + np.random.uniform(-20, 20),
-                            'rainfall_1h': np.random.uniform(0, 50),
-                            'rainfall_3h': np.random.uniform(0, 100),
-                            'wind_speed': np.random.uniform(0, 50),
-                            'flood_risk': np.random.choice([0, 1], p=[0.6, 0.4])
-                        }
-                        synthetic_data.append(sample)
-                    
-                    synthetic_df = pd.DataFrame(synthetic_data)
-                
-                # Combine data
-                if len(real_df) > 0:
-                    df = pd.concat([real_df, synthetic_df], ignore_index=True)
-                else:
-                    df = synthetic_df
-                
-                # Train model
-                result = train_model(df)
-                if len(result) == 3:
-                    model, features, is_advanced = result
-                else:
-                    model, features = result
-                    is_advanced = use_advanced
-                
-                # Update UI in main thread
-                self.root.after(0, lambda: self.on_training_complete(model, features, is_advanced))
-                
-            except Exception as e:
-                import traceback
-                error_msg = f"{str(e)}\n{traceback.format_exc()}"
-                self.root.after(0, lambda: self.on_training_error(error_msg))
-        
-        # Start training in background thread
-        threading.Thread(target=train_in_thread, daemon=True).start()
-
-    def on_training_complete(self, model, features, is_advanced):
-        """Callback when training completes"""
-        self.model = model
-        self.features = features
-        self.is_advanced = is_advanced
-        
-        self.update_status("Model training completed!")
-        
-        if self.model is not None:
-            self.model_status_label.config(
-                text=f"Trained ({'Advanced' if self.is_advanced else 'Basic'})",
-                style='Success.TLabel'
-            )
-            messagebox.showinfo("Success", 
-                              f"Model {'advanced (3 levels)' if self.is_advanced else 'basic (2 levels)'} trained successfully!")
-        else:
-            self.model_status_label.config(text="Training failed", style='Error.TLabel')
-
-    def on_training_error(self, error_msg):
-        """Callback when training error occurs"""
-        self.update_status(f"Error training model")
-        messagebox.showerror("Error", f"Training error:\n{error_msg}")
-
-    def run_auto_system(self):
-        """Run auto system"""
-        def run_in_thread():
-            try:
-                self.root.after(0, lambda: self.update_status("Running auto system...", True))
-                
-                # Run crawlers
-                commands = [
-                    ["python", "rainfall_crawler.py"],
-                    ["python", "river_level_crawler.py"]
-                ]
-                
-                for cmd in commands:
-                    try:
-                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-                        if result.returncode != 0:
-                            self.root.after(0, lambda e=result.stderr, c=cmd: 
-                                          messagebox.showerror("Error", f"Error running {' '.join(c)}:\n{e}"))
-                            return
-                    except subprocess.TimeoutExpired:
-                        self.root.after(0, lambda c=cmd: 
-                                      messagebox.showerror("Error", f"Timeout running {' '.join(c)}"))
-                        return
-                
-                # Train model after getting data
-                self.root.after(0, lambda: self.update_status("Training model after crawl...", True))
-                self.root.after(1000, self.train_prediction_model)  # Delay to allow UI update
-                
-            except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror("Error", f"Auto run error: {str(e)}"))
-        
-        threading.Thread(target=run_in_thread, daemon=True).start()
-
-    # Database management methods
-    def setup_database(self):
-        """Set up database"""
-        try:
-            # Import setup function
-            from setup_db import setup_database
-            result = setup_database()
-            if result:
-                messagebox.showinfo("Success", "Database setup successful!")
-                self.check_database_connection()
-            else:
-                messagebox.showerror("Error", "Unable to set up database!")
-        except Exception as e:
-            messagebox.showerror("Error", f"Database setup error: {str(e)}")
-
-    def crawl_weather_data(self):
-        """Crawl weather data"""
-        self.update_status("Crawling weather data...", True)
-        
-        def crawl_in_thread():
-            try:
-                result = subprocess.run(["python", "rainfall_crawler.py"], 
-                                      capture_output=True, text=True, timeout=120)
-                if result.returncode == 0:
-                    self.root.after(0, lambda: self.update_status("Weather crawl completed!"))
-                    self.root.after(0, lambda: messagebox.showinfo("Success", "Weather data crawled!"))
-                    self.root.after(0, self.refresh_dashboard)
-                else:
-                    self.root.after(0, lambda: messagebox.showerror("Error", f"Weather crawl error:\n{result.stderr}"))
-            except subprocess.TimeoutExpired:
-                self.root.after(0, lambda: messagebox.showerror("Error", "Timeout crawling weather data"))
-            except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror("Error", f"Error: {str(e)}"))
-        
-        threading.Thread(target=crawl_in_thread, daemon=True).start()
-
-    def crawl_river_data(self):
-        """Crawl river water level data"""
-        self.update_status("Crawling river data...", True)
-        
-        def crawl_in_thread():
-            try:
-                result = subprocess.run(["python", "river_level_crawler.py"], 
-                                      capture_output=True, text=True, timeout=120)
-                if result.returncode == 0:
-                    self.root.after(0, lambda: self.update_status("River crawl completed!"))
-                    self.root.after(0, lambda: messagebox.showinfo("Success", "River data crawled!"))
-                    self.root.after(0, self.refresh_dashboard)
-                else:
-                    self.root.after(0, lambda: messagebox.showerror("Error", f"River crawl error:\n{result.stderr}"))
-            except subprocess.TimeoutExpired:
-                self.root.after(0, lambda: messagebox.showerror("Error", "Timeout crawling river data"))
-            except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror("Error", f"Error: {str(e)}"))
-        
-        threading.Thread(target=crawl_in_thread, daemon=True).start()
-
-    def refresh_data(self):
-        """Refresh displayed data"""
-        try:
-            self.update_status("Loading data...", True)
-            
-            # Clear treeview
-            for item in self.data_tree.get_children():
-                self.data_tree.delete(item)
-            
-            # Load and display data
-            df = load_combined_data()
-            if df is None or len(df) == 0:
-                df = load_data_from_db()
-            
-            if df is not None and len(df) > 0:
-                # Sort by time descending
-                if 'created_at' in df.columns:
-                    df = df.sort_values('created_at', ascending=False)
-                
-                for idx, row in df.head(100).iterrows():  # Show latest 100 records
-                    values = [
-                        row.get('location_name', 'N/A'),
-                        str(row.get('created_at', ''))[:19] if row.get('created_at') else 'N/A',
-                        f"{row.get('temperature', 0):.1f}°C",
-                        f"{row.get('humidity', 0):.0f}%",
-                        f"{row.get('rainfall_1h', 0):.1f}mm",
-                        f"{row.get('water_level', 0):.0f}cm" if 'water_level' in row and pd.notna(row.get('water_level')) else 'N/A',
-                        str(row.get('flood_risk_level', row.get('flood_risk', 'N/A')))
-                    ]
-                    self.data_tree.insert('', 'end', values=values)
-            
-            self.update_status(f"Loaded {len(df) if df is not None else 0} records")
-            
-        except Exception as e:
-            self.update_status("Error loading data")
-            messagebox.showerror("Error", f"Error refreshing data: {str(e)}")
-
-    def cleanup_database(self):
-        """Clean up database"""
-        if messagebox.askyesno("Confirmation", "Are you sure you want to clean up the database?\nThis will remove old and duplicate data."):
-            try:
-                self.update_status("Cleaning up database...", True)
-                
-                conn = get_connection()
-                if conn:
-                    cursor = conn.cursor()
-                    
-                    # Remove duplicates from rainfall_data
-                    cursor.execute("""
-                        DELETE r1 FROM rainfall_data r1
-                        INNER JOIN rainfall_data r2 
-                        WHERE r1.id > r2.id 
-                        AND r1.location_name = r2.location_name 
-                        AND DATE(r1.created_at) = DATE(r2.created_at)
-                    """)
-                    
-                    # Remove old data (keep only last 1000 records)
-                    cursor.execute("""
-                        DELETE FROM rainfall_data 
-                        WHERE id NOT IN (
-                            SELECT id FROM (
-                                SELECT id FROM rainfall_data 
-                                ORDER BY created_at DESC LIMIT 1000
-                            ) AS temp
-                        )
-                    """)
-                    
-                    conn.commit()
-                    cursor.close()
-                    close_connection(conn)
-                    
-                    self.update_status("Database cleanup completed")
-                    messagebox.showinfo("Success", "Database cleaned up!")
-                    self.refresh_dashboard()
-                else:
-                    messagebox.showerror("Error", "Cannot connect to database")
-                    
-            except Exception as e:
-                self.update_status("Error cleaning database")
-                messagebox.showerror("Error", f"Database cleanup error: {str(e)}")
-
-    def manage_database(self):
-        """Open database management tool"""
-        try:
-            subprocess.Popen(["python", "database_manager.py"])
-        except Exception as e:
-            messagebox.showerror("Error", f"Cannot open database manager: {str(e)}")
-
-    def evaluate_model(self):
-        """Evaluate model"""
-        if self.model is None:
-            messagebox.showwarning("Warning", "No model to evaluate!\nPlease train a model first.")
-            return
-        
-        info_text = f"""MODEL INFORMATION:
-
-Type: {'Advanced (3 Levels)' if self.is_advanced else 'Basic (2 Levels)'}
-Number of Features: {len(self.features) if self.features else 0}
-Features Used: {', '.join(self.features) if self.features else 'N/A'}
-
-Status: Ready to use
-Algorithm: Random Forest Classifier
-
-Prediction Capability:
-- {'LOW, MODERATE, HIGH' if self.is_advanced else 'No Flood, Flood'}
-- High confidence with complete data
-- Automatically adjusts to available data type
-"""
-        
-        messagebox.showinfo("Model Evaluation", info_text)
-
-    def generate_reports(self):
-        """Generate report"""
-        try:
-            self.update_status("Generating report...", True)
-            
-            # Clear previous plots
-            for ax in self.reports_axes.flat:
-                ax.clear()
-            
-            # Load data based on date range
-            df = load_combined_data()
-            if df is None or len(df) == 0:
-                df = load_data_from_db()
-            
-            if df is None or len(df) == 0:
-                messagebox.showwarning("Warning", "No data to generate report!")
-                return
-            
-            # Filter by date range
-            date_range = self.date_range_var.get()
-            if date_range != "All" and 'created_at' in df.columns:
-                days_map = {"1 day": 1, "7 days": 7, "30 days": 30}
-                days = days_map.get(date_range, 7)
-                
-                cutoff_date = datetime.now() - timedelta(days=days)
-                df = df[pd.to_datetime(df['created_at']) >= cutoff_date]
-            
-            if len(df) == 0:
-                messagebox.showwarning("Warning", f"No data in the {date_range} time range!")
-                return
-            
-            # Chart 1: Temperature vs Rainfall correlation
-            if 'temperature' in df.columns and 'rainfall_1h' in df.columns:
-                self.reports_axes[0,0].scatter(df['temperature'], df['rainfall_1h'], alpha=0.6, c='blue')
-                self.reports_axes[0,0].set_title('Temperature vs Rainfall Correlation')
-                self.reports_axes[0,0].set_xlabel('Temperature (°C)')
-                self.reports_axes[0,0].set_ylabel('Rainfall (mm/h)')
-                self.reports_axes[0,0].grid(True, alpha=0.3)
-            
-            # Chart 2: Daily rainfall trend
-            if 'created_at' in df.columns and 'rainfall_1h' in df.columns:
-                df['date'] = pd.to_datetime(df['created_at']).dt.date
-                daily_rainfall = df.groupby('date')['rainfall_1h'].mean()
-                
-                self.reports_axes[0,1].plot(daily_rainfall.index, daily_rainfall.values, 'g-o', markersize=4)
-                self.reports_axes[0,1].set_title('Daily Rainfall Trend')
-                self.reports_axes[0,1].set_ylabel('Average Rainfall (mm/h)')
-                self.reports_axes[0,1].tick_params(axis='x', rotation=45)
-                self.reports_axes[0,1].grid(True, alpha=0.3)
-            
-            # Chart 3: Risk distribution
-            if 'flood_risk_level' in df.columns:
-                risk_counts = df['flood_risk_level'].value_counts().sort_index()
-                labels = ['LOW', 'MODERATE', 'HIGH']
-                colors = ['#27ae60', '#f39c12', '#e74c3c']
-                
-                bars = self.reports_axes[1,0].bar(range(len(risk_counts)), risk_counts.values, 
-                                                 color=[colors[i] for i in risk_counts.index])
-                self.reports_axes[1,0].set_title('Risk Level Distribution')
-                self.reports_axes[1,0].set_xlabel('Risk Level')
-                self.reports_axes[1,0].set_ylabel('Occurrences')
-                self.reports_axes[1,0].set_xticks(range(len(risk_counts)))
-                self.reports_axes[1,0].set_xticklabels([labels[i] for i in risk_counts.index])
-                
-                # Add value labels on bars
-                for bar, value in zip(bars, risk_counts.values):
-                    self.reports_axes[1,0].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
-                                               str(value), ha='center', va='bottom')
-            
-            # Chart 4: Water level vs Alert levels (if available)
-            if 'water_level' in df.columns:
-                water_levels = df['water_level'].values
-                self.reports_axes[1,1].hist(water_levels, bins=20, alpha=0.7, color='cyan', edgecolor='black')
-                self.reports_axes[1,1].set_title('Water Level Distribution')
-                self.reports_axes[1,1].set_xlabel('Water Level (cm)')
-                self.reports_axes[1,1].set_ylabel('Frequency')
-                
-                # Add alert level lines
-                self.reports_axes[1,1].axvline(x=180, color='yellow', linestyle='--', alpha=0.8, label='Alert 1')
-                self.reports_axes[1,1].axvline(x=220, color='orange', linestyle='--', alpha=0.8, label='Alert 2')
-                self.reports_axes[1,1].axvline(x=270, color='red', linestyle='--', alpha=0.8, label='Alert 3')
-                self.reports_axes[1,1].legend()
-            else:
-                # Show humidity distribution instead
-                if 'humidity' in df.columns:
-                    humidity_data = df['humidity'].values
-                    self.reports_axes[1,1].hist(humidity_data, bins=20, alpha=0.7, color='lightgreen', edgecolor='black')
-                    self.reports_axes[1,1].set_title('Humidity Distribution')
-                    self.reports_axes[1,1].set_xlabel('Humidity (%)')
-                    self.reports_axes[1,1].set_ylabel('Frequency')
-            
-            plt.tight_layout()
-            self.reports_canvas.draw()
-            
-            self.update_status(f"Report generated for {len(df)} records")
-            messagebox.showinfo("Success", f"Report generated successfully!\nUsed {len(df)} records in {date_range}.")
-            
-        except Exception as e:
-            self.update_status("Error generating report")
-            messagebox.showerror("Error", f"Report generation error: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
-
-    def export_to_excel(self):
-        """Export data to Excel"""
-        try:
-            # Load data
-            df = load_combined_data()
-            if df is None or len(df) == 0:
-                df = load_data_from_db()
-            
-            if df is None or len(df) == 0:
-                messagebox.showwarning("Warning", "No data to export!")
-                return
-            
-            # Ask for save location
-            filename = filedialog.asksaveasfilename(
-                defaultextension=".xlsx",
-                filetypes=[("Excel files", "*.xlsx"), ("CSV files", "*.csv"), ("All files", "*.*")],
-                title="Save Report"
-            )
-            
-            if filename:
-                if filename.endswith('.xlsx'):
-                    df.to_excel(filename, index=False)
-                else:
-                    df.to_csv(filename, index=False, encoding='utf-8-sig')
-                
-                messagebox.showinfo("Success", f"Exported {len(df)} records to:\n{filename}")
-                
-        except Exception as e:
-            messagebox.showerror("Error", f"Export error: {str(e)}")
-
-    def export_report(self):
-        """Export detailed report"""
-        try:
-            # Create comprehensive report
-            df = load_combined_data()
-            if df is None or len(df) == 0:
-                df = load_data_from_db()
-            
-            if df is None or len(df) == 0:
-                messagebox.showwarning("Warning", "No data to generate report!")
-                return
-            
-            # Generate report text
-            report_text = f"""FLOOD PREDICTION SYSTEM REPORT
-{'='*60}
-
-Report Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-Total Records: {len(df)}
-
-DATA STATISTICS:
-{'='*30}
-"""
-            
-            if 'temperature' in df.columns:
-                report_text += f"""
-Temperature:
-- Average: {df['temperature'].mean():.1f}°C
-- Min: {df['temperature'].min():.1f}°C
-- Max: {df['temperature'].max():.1f}°C
-"""
-            
-            if 'humidity' in df.columns:
-                report_text += f"""
-Humidity:
-- Average: {df['humidity'].mean():.1f}%
-- Min: {df['humidity'].min():.1f}%
-- Max: {df['humidity'].max():.1f}%
-"""
-            
-            if 'rainfall_1h' in df.columns:
-                report_text += f"""
-Rainfall:
-- Average: {df['rainfall_1h'].mean():.1f}mm/h
-- Min: {df['rainfall_1h'].min():.1f}mm/h
-- Max: {df['rainfall_1h'].max():.1f}mm/h
-- Number of times rainfall > 10mm/h: {len(df[df['rainfall_1h'] > 10])}
-"""
-            
-            if 'water_level' in df.columns:
-                report_text += f"""
-River Water Level:
-- Average: {df['water_level'].mean():.1f}cm
-- Min: {df['water_level'].min():.1f}cm
-- Max: {df['water_level'].max():.1f}cm
-- Times exceeding Alert Level 1 (>180cm): {len(df[df['water_level'] > 180])}
-- Times exceeding Alert Level 2 (>220cm): {len(df[df['water_level'] > 220])}
-- Times exceeding Alert Level 3 (>270cm): {len(df[df['water_level'] > 270])}
-"""
-            
-            # Risk analysis
-            if 'flood_risk_level' in df.columns:
-                risk_counts = df['flood_risk_level'].value_counts()
-                report_text += f"""
-RISK ANALYSIS (3 LEVELS):
-{'='*35}
-- LOW Risk: {risk_counts.get(0, 0)} times ({risk_counts.get(0, 0)/len(df)*100:.1f}%)
-- MODERATE Risk: {risk_counts.get(1, 0)} times ({risk_counts.get(1, 0)/len(df)*100:.1f}%)
-- HIGH Risk: {risk_counts.get(2, 0)} times ({risk_counts.get(2, 0)/len(df)*100:.1f}%)
-"""
-            elif 'flood_risk' in df.columns:
-                risk_counts = df['flood_risk'].value_counts()
-                report_text += f"""
-RISK ANALYSIS (2 LEVELS):
-{'='*35}
-- No Risk: {risk_counts.get(0, 0)} times ({risk_counts.get(0, 0)/len(df)*100:.1f}%)
-- Flood Risk: {risk_counts.get(1, 0)} times ({risk_counts.get(1, 0)/len(df)*100:.1f}%)
-"""
-            
-            report_text += f"""
-RECOMMENDATIONS:
-{'='*15}
-1. Continue monitoring weather and river data
-2. Periodically update prediction model
-3. Check and maintain warning systems
-4. Train staff on emergency procedures
-
-{'='*60}
-Report generated by Flood Prediction System
-"""
-            
-            # Save report
-            filename = filedialog.asksaveasfilename(
-                defaultextension=".txt",
-                filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
-                title="Save Detailed Report"
-            )
-            
-            if filename:
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(report_text)
-                
-                messagebox.showinfo("Success", f"Detailed report created:\n{filename}")
-                
-        except Exception as e:
-            messagebox.showerror("Error", f"Report creation error: {str(e)}")
-
-    # Settings methods
-    def test_db_connection(self):
-        """Test database connection"""
-        try:
-            # Temporarily update connection parameters (this is just for testing)
-            conn = get_connection()
-            if conn:
-                close_connection(conn)
-                messagebox.showinfo("Success", "Database connection successful!")
-            else:
-                messagebox.showerror("Error", "Cannot connect to database!")
-        except Exception as e:
-            messagebox.showerror("Error", f"Connection error: {str(e)}")
-
-    def save_db_settings(self):
-        """Save database settings"""
-        try:
-            # Create or update .env file
-            env_content = f"""MYSQL_HOST={self.db_host_var.get()}
-MYSQL_PORT={self.db_port_var.get()}
-MYSQL_USER={self.db_user_var.get()}
-MYSQL_PASSWORD={self.db_pass_var.get()}
-MYSQL_DATABASE=flood_prediction_db
-WINDY_API_KEY={self.api_key_var.get()}
-"""
-            
-            with open('.env', 'w') as f:
-                f.write(env_content)
-            
-            messagebox.showinfo("Success", "Database settings saved!\nRestart the application to apply changes.")
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Settings save error: {str(e)}")
-
-    def test_api_key(self):
-        """Test API key"""
-        api_key = self.api_key_var.get()
-        if not api_key:
-            messagebox.showwarning("Warning", "Please enter an API key!")
-            return
-        
-        try:
-            import requests
-            # Test with a simple API call
-            url = f"https://api.windy.com/api/point-forecast/v2"
-            headers = {"key": api_key}
-            
-            # Simple test request
-            response = requests.get(url, headers=headers, timeout=10)
-            
-            if response.status_code == 200:
-                messagebox.showinfo("Success", "API key is valid!")
-            else:
-                messagebox.showerror("Error", f"Invalid API key!\nStatus code: {response.status_code}")
-                
-        except Exception as e:
-            messagebox.showerror("Error", f"API test error: {str(e)}")
-
-    def save_api_key(self):
-        """Save API key"""
-        try:
-            # Read existing .env file
-            env_content = ""
-            try:
-                with open('.env', 'r') as f:
-                    env_content = f.read()
-            except FileNotFoundError:
-                pass
-            
-            # Update API key
-            lines = env_content.split('\n')
-            updated = False
-            
-            for i, line in enumerate(lines):
-                if line.startswith('WINDY_API_KEY='):
-                    lines[i] = f"WINDY_API_KEY={self.api_key_var.get()}"
-                    updated = True
-                    break
-            
-            if not updated:
-                lines.append(f"WINDY_API_KEY={self.api_key_var.get()}")
-            
-            # Write back to file
-            with open('.env', 'w') as f:
-                f.write('\n'.join(lines))
-            
-            messagebox.showinfo("Success", "API key saved!")
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"API key save error: {str(e)}")
-
-    # Help methods
-    def show_help(self):
-        """Show user guide"""
-        help_text = """FLOOD PREDICTION SYSTEM USER GUIDE
-
-1. INITIAL SETUP:
-   - Go to File > Setup Database to create the database
-   - Go to Settings to configure database and API key
-   - Crawl weather and river data
-
-2. TRAIN MODEL:
-   - Go to Dashboard > Run Auto (recommended)
-   - Or go to Model > Train Model
-
-3. PREDICTION:
-   - Go to Prediction tab
-   - Enter weather and water level parameters
-   - Click "PREDICT FLOOD"
-
-4. VIEW DATA:
-   - Data tab: View collected data
-   - Reports tab: Generate charts and detailed reports
-
-5. MANAGEMENT:
-   - Periodically clean up database
-   - Export reports when needed
-   - Monitor system status on Dashboard
-
-NOTES:
-- System automatically selects appropriate model
-- Advanced model (3 levels) with water level data
-- Basic model (2 levels) with only weather data
-"""
-        
-        # Create help window
-        help_window = tk.Toplevel(self.root)
-        help_window.title("User Guide")
-        help_window.geometry("700x500")
-        
-        text_widget = tk.Text(help_window, wrap=tk.WORD, padx=10, pady=10)
-        scrollbar = ttk.Scrollbar(help_window, orient="vertical", command=text_widget.yview)
-        text_widget.configure(yscrollcommand=scrollbar.set)
-        
-        text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        text_widget.insert(tk.END, help_text)
-        text_widget.config(state=tk.DISABLED)
-
-    def show_about(self):
-        """Show software information"""
-        about_text = """FLOOD PREDICTION SYSTEM
-
-Version: 1.0
-Release Date: 2024
-
-Main Features:
-- Multi-level flood prediction (2-3 levels)
-- Integration of weather and river data
-- User-friendly interface
-- Detailed reports and charts
-- Automated data collection
-
-Technologies Used:
-- Python 3.x
-- Tkinter (GUI)
-- Scikit-learn (Machine Learning)
-- MySQL (Database)
-- Matplotlib (Visualization)
-
-Developed by: AI Research Team
-Email: support@floodprediction.com
-Website: www.floodprediction.com
-"""
-        messagebox.showinfo("About Software", about_text)
-
-
 def main():
-    """Main function to run the application"""
     root = tk.Tk()
     app = FloodPredictionGUI(root)
-    
-    # Set window icon (if available)
-    try:
-        root.iconbitmap('icon.ico')
-    except:
-        pass
-    
-    # Center window on screen
-    root.update_idletasks()
-    x = (root.winfo_screenwidth() // 2) - (root.winfo_width() // 2)
-    y = (root.winfo_screenheight() // 2) - (root.winfo_height() // 2)
-    root.geometry(f"+{x}+{y}")
-    
-    # Start the GUI
     root.mainloop()
-
 
 if __name__ == "__main__":
     main()

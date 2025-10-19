@@ -1,3 +1,6 @@
+# predictor.py
+# Flood prediction system using weather and river data
+
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
